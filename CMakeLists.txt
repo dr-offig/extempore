@@ -6,7 +6,7 @@ option(BUILD_TESTS "build test targets (including examples)" ON)
 option(PACKAGE "set up install targets for packaging" OFF)
 
 option(EXTERNAL_SHLIBS_AUDIO "download & build audio-related external library dependencies" ON)
-option(EXTERNAL_SHLIBS_GRAPHICS "download & build graphics-related external library dependencies" ON)
+option(EXTERNAL_SHLIBS_GRAPHICS "download & build graphics-related external library dependencies" OFF)
 set(EXTERNAL_SHLIBS (EXTERNAL_SHLIBS_AUDIO OR EXTERNAL_SHLIBS_GRAPHICS))
 
 option(EXT_DYLIB "build extempore as a dynamic library" OFF)
