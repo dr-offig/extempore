@@ -5,8 +5,7 @@ set(CTEST_DROP_SITE "my.cdash.org")
 set(CTEST_DROP_LOCATION "/submit.php?project=Extempore")
 set(CTEST_DROP_SITE_CDASH TRUE)
 
-# this is a hack - copied from Extempore's CMakeLists.txt
-
+# Platform detection (shared logic with CMakeLists.txt)
 if(UNIX)
   find_program(UNAME_PROGRAM uname)
   execute_process(COMMAND ${UNAME_PROGRAM} -m
@@ -18,32 +17,31 @@ if(UNIX)
   execute_process(COMMAND ${UNAME_PROGRAM} -s
     OUTPUT_VARIABLE UNAME_OS_NAME
     OUTPUT_STRIP_TRAILING_WHITESPACE)
-endif(UNIX)
+endif()
 
 if(APPLE)
   set(EXTEMPORE_SYSTEM_NAME "osx")
   execute_process(COMMAND sw_vers -productVersion
     OUTPUT_VARIABLE EXTEMPORE_SYSTEM_VERSION
     OUTPUT_STRIP_TRAILING_WHITESPACE)
-  string(REGEX MATCH "^10.[0-9]+" EXTEMPORE_SYSTEM_VERSION ${EXTEMPORE_SYSTEM_VERSION})
+  string(REGEX MATCH "^[0-9]+\\.?[0-9]*" EXTEMPORE_SYSTEM_VERSION ${EXTEMPORE_SYSTEM_VERSION})
   set(EXTEMPORE_SYSTEM_ARCHITECTURE ${UNAME_MACHINE_NAME})
 elseif(UNIX)
-  # try lsb_release first - better at giving the distro name
   execute_process(COMMAND lsb_release -is
     OUTPUT_VARIABLE EXTEMPORE_SYSTEM_NAME
-    OUTPUT_STRIP_TRAILING_WHITESPACE)
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET)
   if(NOT EXTEMPORE_SYSTEM_NAME)
-    # otherwise use uname output
     set(EXTEMPORE_SYSTEM_NAME ${UNAME_OS_NAME})
   endif()
   set(EXTEMPORE_SYSTEM_VERSION ${UNAME_OS_RELEASE})
   set(EXTEMPORE_SYSTEM_ARCHITECTURE ${UNAME_MACHINE_NAME})
 elseif(WIN32)
   set(EXTEMPORE_SYSTEM_NAME "Windows")
-  execute_process(COMMAND wmic os get Caption /value
-    OUTPUT_VARIABLE EXTEMPORE_SYSTEM_VERSION
-    OUTPUT_STRIP_TRAILING_WHITESPACE)
-  string(REGEX MATCH "[0-9]+" EXTEMPORE_SYSTEM_VERSION ${EXTEMPORE_SYSTEM_VERSION})
+  string(REGEX MATCH "^[0-9]+" EXTEMPORE_SYSTEM_VERSION ${CMAKE_SYSTEM_VERSION})
+  if(EXTEMPORE_SYSTEM_VERSION LESS 10)
+    math(EXPR EXTEMPORE_SYSTEM_VERSION "${EXTEMPORE_SYSTEM_VERSION} + 1")
+  endif()
   set(EXTEMPORE_SYSTEM_ARCHITECTURE ${CMAKE_SYSTEM_PROCESSOR})
 else()
   message(FATAL_ERROR "Sorry, Extempore isn't supported on this platform - macOS, Linux & Windows only.")
@@ -74,13 +72,8 @@ elseif(WIN32)
 endif()
 
 ctest_start(Continuous)
-
 ctest_update()
-
 ctest_configure()
-
 ctest_build(CONFIGURATION Release TARGET aot_extended)
-
 ctest_test()
-
 ctest_submit()
