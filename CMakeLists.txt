@@ -490,8 +490,6 @@ else()
         set(_targetname aot_${_basename})
         set(_filename ${CMAKE_SOURCE_DIR}/libs/aot-cache/xtm${_basename}.ll)
 
-        extempore_get_next_port(_port)
-
         if(TIMEOUT_CMD)
             set(_extempore_cmd ${TIMEOUT_CMD} --kill-after=10 ${AOT_TIMEOUT_SECONDS} $<TARGET_FILE:extempore>)
         else()
@@ -500,14 +498,14 @@ else()
 
         if(PACKAGE)
             add_custom_command(OUTPUT ${_filename}
-        COMMAND ${_extempore_cmd} --nobase --noaudio --mcpu=generic --attr=none --port=${_port}
-          --eval "(impc:aot:compile-xtm-file \"${libfile}\")"
+        COMMAND ${_extempore_cmd} --nobase --noaudio --mcpu=generic --attr=none
+          --batch "(impc:aot:compile-xtm-file \"${libfile}\")"
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         VERBATIM)
         else()
             add_custom_command(OUTPUT ${_filename}
-        COMMAND ${_extempore_cmd} --nobase --noaudio --port=${_port}
-          --eval "(impc:aot:compile-xtm-file \"${libfile}\")"
+        COMMAND ${_extempore_cmd} --nobase --noaudio
+          --batch "(impc:aot:compile-xtm-file \"${libfile}\")"
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         VERBATIM)
         endif()

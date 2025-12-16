@@ -570,6 +570,7 @@ double AUDIO_CLOCK_NOW = 0.0;
 double AUDIO_CLOCK_BASE = 0.0;
 uint64_t TIME_DIVISION = 1;
 bool AUDIO_NONE = false;
+bool BATCH_MODE = false;
 uint32_t AUDIO_DEVICE = -1;
 uint32_t AUDIO_IN_DEVICE = -1;
 std::string AUDIO_DEVICE_NAME;

@@ -121,7 +121,7 @@ void sig_handler(int Signo)
 #endif
 
 enum { OPT_COMPILE_STR, OPT_SHAREDIR, OPT_NOBASE, OPT_SAMPLERATE, OPT_FRAMES,
-       OPT_CHANNELS, OPT_IN_CHANNELS, OPT_INITEXPR, OPT_INITFILE,
+       OPT_CHANNELS, OPT_IN_CHANNELS, OPT_INITEXPR, OPT_INITFILE, OPT_BATCH,
        OPT_PORT, OPT_TERM, OPT_NO_AUDIO, OPT_TIME_DIV, OPT_DEVICE, OPT_IN_DEVICE,
        OPT_DEVICE_NAME, OPT_IN_DEVICE_NAME,
        OPT_PRT_DEVICES, OPT_REALTIME, OPT_ARCH, OPT_CPU, OPT_ATTR,
@@ -141,6 +141,7 @@ CSimpleOptA::SOption g_rgOptions[] = {
     { OPT_IN_CHANNELS,    "--inchannels",    SO_REQ_SEP    },
     { OPT_INITEXPR,       "--eval",          SO_REQ_SEP    },
     { OPT_INITFILE,       "--run",           SO_REQ_SEP    },
+    { OPT_BATCH,          "--batch",         SO_REQ_SEP    },
     { OPT_PORT,           "--port",          SO_REQ_SEP    },
     { OPT_TERM,           "--term",          SO_REQ_SEP    },
     { OPT_NO_AUDIO,       "--noaudio",       SO_NONE       },
@@ -220,6 +221,10 @@ EXPORT int extempore_init(int argc, char** argv)
                 break;
             case OPT_INITEXPR:
                 initexpr = std::string(args.OptionArg());
+                break;
+            case OPT_BATCH:
+                initexpr = std::string(args.OptionArg());
+                extemp::UNIV::BATCH_MODE = true;
                 break;
             case OPT_INITFILE:
                 {
@@ -309,6 +314,7 @@ EXPORT int extempore_init(int argc, char** argv)
                 std::cout << "Extempore's command line options: " << std::endl;
                 std::cout << "            --help: prints this menu" << std::endl;
                 std::cout << "             --run: path to a scheme file to load at startup" << std::endl;
+                std::cout << "           --batch: run in batch mode (no server, single process) with given expression" << std::endl;
                 std::cout << "            --port: port for primary process [7099]" << std::endl;
                 std::cout << "            --term: either ansi, cmd (windows), basic (for simpler ansi terms), or nocolor" << std::endl;
                 std::cout << "        --sharedir: location of the Extempore share dir (which contains runtime/, libs/, examples/, etc.)" << std::endl;
@@ -396,44 +402,52 @@ EXPORT int extempore_init(int argc, char** argv)
     std::cout << "---------------------------------------" << std::endl;
     ascii_default();
     bool startup_ok = true;
-    extemp::SchemeProcess* utility = new extemp::SchemeProcess(extemp::UNIV::SHARE_DIR, utility_name, utility_port, 0);
-    startup_ok &= utility->start();
-    extemp::SchemeREPL* utility_repl = new extemp::SchemeREPL(utility_name, utility);
-    utility_repl->connectToProcessAtHostname(host, utility_port);
+
+    if (extemp::UNIV::BATCH_MODE) {
+        // Batch mode: single process, no server, no utility process
+        primary = new extemp::SchemeProcess(extemp::UNIV::SHARE_DIR, primary_name, primary_port, 0, initexpr);
+        primary->start(true); // this will not return
+    } else {
+        // Normal mode: utility + primary processes with server threads
+        extemp::SchemeProcess* utility = new extemp::SchemeProcess(extemp::UNIV::SHARE_DIR, utility_name, utility_port, 0);
+        startup_ok &= utility->start();
+        extemp::SchemeREPL* utility_repl = new extemp::SchemeREPL(utility_name, utility);
+        utility_repl->connectToProcessAtHostname(host, utility_port);
 
 #ifndef SUBSUME_PRIMARY // if not subsume primary (i.e. primary NOT on thread 0)
-    primary = new extemp::SchemeProcess(extemp::UNIV::SHARE_DIR, primary_name, primary_port, 0, initexpr);
-    startup_ok &= primary->start();
-    extemp::SchemeREPL* primary_repl = new extemp::SchemeREPL(primary_name, primary);
-    primary_repl->connectToProcessAtHostname(host, primary_port);
-    //std::cout << "primary started:" << std::endl << std::flush;
-    if (!startup_ok) {
-        ascii_error();
-        printf("ERROR:");
-        ascii_default();
-		std::cout << " one or more processes failed to start, exiting." << std::endl;
-        exit(1);
-    }
-    while (true) {
-      if (XTMMainCallback) { XTMMainCallback(); }
+        primary = new extemp::SchemeProcess(extemp::UNIV::SHARE_DIR, primary_name, primary_port, 0, initexpr);
+        startup_ok &= primary->start();
+        extemp::SchemeREPL* primary_repl = new extemp::SchemeREPL(primary_name, primary);
+        primary_repl->connectToProcessAtHostname(host, primary_port);
+        //std::cout << "primary started:" << std::endl << std::flush;
+        if (!startup_ok) {
+            ascii_error();
+            printf("ERROR:");
+            ascii_default();
+            std::cout << " one or more processes failed to start, exiting." << std::endl;
+            exit(1);
+        }
+        while (true) {
+          if (XTMMainCallback) { XTMMainCallback(); }
 #ifdef _WIN32
-      Sleep(2000);
+          Sleep(2000);
 #elif __APPLE__
-      sleep(2);
+          sleep(2);
 #else
-      sleep(2000);
+          sleep(2000);
 #endif
-    }
+        }
 #else
-    primary = new extemp::SchemeProcess(extemp::UNIV::SHARE_DIR, primary_name, primary_port, 0, initexpr);
+        primary = new extemp::SchemeProcess(extemp::UNIV::SHARE_DIR, primary_name, primary_port, 0, initexpr);
 
-    // need to connect to primary from alternate thread (can be short lived simply puts repl on heap)
-    extemp::EXTThread* replthread = new extemp::EXTThread(extempore_primary_repl_delayed_connect,primary);
-    pass_primary_port = primary_port;
-    replthread->start();
-    // start the primary process running on this thread (i.e. process thread 0)
-    primary->start(true); // this will not return
+        // need to connect to primary from alternate thread (can be short lived simply puts repl on heap)
+        extemp::EXTThread* replthread = new extemp::EXTThread(extempore_primary_repl_delayed_connect,primary);
+        pass_primary_port = primary_port;
+        replthread->start();
+        // start the primary process running on this thread (i.e. process thread 0)
+        primary->start(true); // this will not return
 #endif // end SUBSUME_PRIMARY
+    }
     return 0;
 }
 

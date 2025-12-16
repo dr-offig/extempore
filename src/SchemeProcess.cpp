@@ -170,36 +170,40 @@ SchemeProcess::SchemeProcess(const std::string& LoadPath, const std::string& Nam
 
 bool SchemeProcess::start(bool subsume)
 {
-    //set socket options
-    int t_reuse = 1;
-    setsockopt(m_serverSocket, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<char*>(&t_reuse), sizeof(t_reuse));
-    struct sockaddr_in address;
-    memset(&address, 0, sizeof(address));
-    address.sin_family = AF_INET;
-    address.sin_port = htons(m_serverPort);
-    address.sin_addr.s_addr = htonl(INADDR_ANY); //set server's IP
-    if (bind(m_serverSocket, reinterpret_cast<sockaddr*>(&address), sizeof(address)) < 0) {
-		ascii_error();
-		printf("ERROR:");
-		ascii_normal();
-        std::cout << " server: could not bind server socket on port " << m_serverPort << std::endl;
-        m_running = false;
-        return false;
-    }
-    if (listen(m_serverSocket, 5) < 0) {
-	    ascii_error();
-		printf("ERROR:");
-		ascii_normal();
-        std::cout << " problem listening to extempore socket" << std::endl;
-        m_running = false;
-        return false;
+    if (!UNIV::BATCH_MODE) {
+        //set socket options
+        int t_reuse = 1;
+        setsockopt(m_serverSocket, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<char*>(&t_reuse), sizeof(t_reuse));
+        struct sockaddr_in address;
+        memset(&address, 0, sizeof(address));
+        address.sin_family = AF_INET;
+        address.sin_port = htons(m_serverPort);
+        address.sin_addr.s_addr = htonl(INADDR_ANY); //set server's IP
+        if (bind(m_serverSocket, reinterpret_cast<sockaddr*>(&address), sizeof(address)) < 0) {
+            ascii_error();
+            printf("ERROR:");
+            ascii_normal();
+            std::cout << " server: could not bind server socket on port " << m_serverPort << std::endl;
+            m_running = false;
+            return false;
+        }
+        if (listen(m_serverSocket, 5) < 0) {
+            ascii_error();
+            printf("ERROR:");
+            ascii_normal();
+            std::cout << " problem listening to extempore socket" << std::endl;
+            m_running = false;
+            return false;
+        }
     }
     if (subsume) {
       m_threadTask.setSubsume();
     }
-    m_guard.init();    
-    m_threadServer.start();
-    m_threadTask.start();    
+    m_guard.init();
+    if (!UNIV::BATCH_MODE) {
+        m_threadServer.start();
+    }
+    m_threadTask.start();
     return true;
 }
 

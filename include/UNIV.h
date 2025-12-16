@@ -126,6 +126,7 @@ EXPORT uint32_t NUM_FRAMES;
 extern uint32_t EXT_TERM;
 extern bool EXT_LOADBASE;
 extern bool AUDIO_NONE;
+extern bool BATCH_MODE;
 extern uint32_t AUDIO_DEVICE;
 extern uint32_t AUDIO_IN_DEVICE;
 extern std::string AUDIO_DEVICE_NAME;
