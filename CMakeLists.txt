@@ -164,6 +164,10 @@ if(EXT_DYLIB)
     set(EXT_DEPS_CXX_FLAGS "${EXT_DEPS_CXX_FLAGS} -fPIC")
 endif()
 
+if(WIN32)
+    string(APPEND EXT_DEPS_C_FLAGS " /Dbzero(b,len)=memset((b),0,(len))")
+endif()
+
 if(NOT ${CMAKE_SIZEOF_VOID_P} EQUAL 8)
     message(FATAL_ERROR "Extempore currently only runs on 64-bit platforms.")
 endif()
