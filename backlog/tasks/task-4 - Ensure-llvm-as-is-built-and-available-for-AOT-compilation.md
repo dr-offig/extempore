@@ -1,9 +1,10 @@
 ---
 id: task-4
 title: Ensure llvm-as is built and available for AOT compilation
-status: To Do
+status: Done
 assignee: []
 created_date: '2025-12-16 06:21'
+updated_date: '2025-12-16 10:29'
 labels:
   - build
   - aot
@@ -25,3 +26,9 @@ AOT (ahead-of-time) compilation in Extempore requires the llvm-as tool to assemb
 - [ ] #3 AOT compilation successfully produces output files in libs/aot-cache/
 - [ ] #4 Changes are limited to CMake configuration for LLVM build
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Resolved by commit 1b06e5e3 which replaced llc/llvm-as with an llvm:emit-object-file FFI binding, eliminating the need to build these external tools entirely.
+<!-- SECTION:NOTES:END -->
