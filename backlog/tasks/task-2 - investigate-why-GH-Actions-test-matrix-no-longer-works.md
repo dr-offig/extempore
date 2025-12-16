@@ -1,9 +1,10 @@
 ---
 id: task-2
 title: investigate why GH Actions test matrix no longer works
-status: To Do
+status: In Progress
 assignee: []
-created_date: "2025-12-16 03:33"
+created_date: '2025-12-16 03:33'
+updated_date: '2025-12-16 05:36'
 labels: []
 dependencies: []
 ---
