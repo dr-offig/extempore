@@ -35,6 +35,7 @@ jobs:
         with:
           path: build/_deps
           key: ${{ matrix.os }}-llvm-${{ env.LLVM_VERSION }}
+          save-always: true
 
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
