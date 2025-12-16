@@ -477,7 +477,7 @@ else()
     macro(aotcompile_lib libfile group)
         get_filename_component(_basename ${libfile} NAME_WE)
         set(_targetname aot_${_basename})
-        set(_filename ${CMAKE_SOURCE_DIR}/libs/aot-cache/xtm${_basename}.so)
+        set(_filename ${CMAKE_SOURCE_DIR}/libs/aot-cache/xtm${_basename}.ll)
 
         extempore_get_next_port(_port)
 
