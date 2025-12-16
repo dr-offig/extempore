@@ -58,3 +58,19 @@ cmake --build . --target clean_aot  # rebuild AOT cache
 cmake --build . --target xtmdoc     # generate docs
 ./extempore --noaudio               # run REPL without audio
 ```
+
+## Running extempore safely
+
+Extempore may send SIGKILL on fatal errors (e.g. LLVM IR compilation failures),
+which can terminate the parent process. To isolate crashes when debugging:
+
+```bash
+# run with timeout and output capture
+(./build/extempore --noaudio --eval "(sys:load \"libs/core/xtmbase.xtm\")" 2>&1 | head -200) &
+pid=$!; sleep 30; kill $pid 2>/dev/null; wait $pid 2>/dev/null
+
+# or use timeout command (Linux)
+timeout 60 ./build/extempore --noaudio --eval "..."
+```
+
+This prevents extempore crashes from killing the agent session.
