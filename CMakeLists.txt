@@ -22,11 +22,12 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 #############################
 
 set(DEP_LLVM_VERSION "21.1.7")
-set(DEP_PORTAUDIO_COMMIT "3f7bee79a65327d2e0965e8a74299723ed6f072d")
-set(DEP_PORTAUDIO_MD5 "182b76e05f6ef21d9f5716da7489905d")
-set(DEP_PORTMIDI_COMMIT "8602f548f71daf5ef638b2f7d224753400cb2158")
-set(DEP_RTMIDI_COMMIT "84d130bf22d878ff1b0e224346e2e0f9e3ba8099")
-set(DEP_RTMIDI_MD5 "d932b9fef01b859a1b8b86a3c8dc6621")
+set(DEP_PORTAUDIO_VERSION "v19.7.0")
+set(DEP_PORTAUDIO_MD5 "54297c72a852669f9987ee7bb9fba0a6")
+set(DEP_PORTMIDI_VERSION "v2.0.8")
+set(DEP_PORTMIDI_MD5 "212d4fa92fbb40c8bbaee054af138bf8")
+set(DEP_RTMIDI_VERSION "6.0.0")
+set(DEP_RTMIDI_MD5 "4fd20d9f3227023d4b369f21d29667ef")
 set(DEP_KISS_FFT_VERSION "1.3.0")
 set(DEP_SNDFILE_COMMIT "ae64caf9b5946d365971c550875000342e763de6")
 set(DEP_NANOVG_COMMIT "3c60175fcc2e5fe305b04355cdce35d499c80310")
@@ -212,7 +213,7 @@ include(ExternalProject)
 
 ExternalProject_Add(portaudio_static
   PREFIX portaudio
-  URL https://github.com/PortAudio/portaudio/archive/${DEP_PORTAUDIO_COMMIT}.zip
+  URL https://github.com/PortAudio/portaudio/archive/${DEP_PORTAUDIO_VERSION}.zip
   URL_MD5 ${DEP_PORTAUDIO_MD5}
   CMAKE_ARGS
     -DPA_BUILD_STATIC=ON
@@ -531,11 +532,12 @@ add_custom_target(clean_aot
 
 if(EXTERNAL_SHLIBS_AUDIO)
     extempore_add_external(portmidi
-    URL https://github.com/extemporelang/portmidi/archive/${DEP_PORTMIDI_COMMIT}.zip
+    URL https://github.com/PortMidi/portmidi/archive/${DEP_PORTMIDI_VERSION}.zip
+    URL_MD5 ${DEP_PORTMIDI_MD5}
     FOLDER EXTERNAL_SHLIBS)
 
     extempore_add_external(rtmidi
-    URL https://github.com/thestk/rtmidi/archive/${DEP_RTMIDI_COMMIT}.zip
+    URL https://github.com/thestk/rtmidi/archive/${DEP_RTMIDI_VERSION}.zip
     URL_MD5 ${DEP_RTMIDI_MD5}
     FOLDER EXTERNAL_SHLIBS
     CMAKE_ARGS -DRTMIDI_BUILD_TESTING=OFF
