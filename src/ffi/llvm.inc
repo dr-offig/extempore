@@ -765,6 +765,82 @@ static pointer export_llvmmodule_bitcode(scheme* Scheme, pointer Args)
     return Scheme->T;
 }
 
+static pointer emitModuleToObjectFile(scheme* Scheme, pointer Args)
+{
+    auto m = reinterpret_cast<llvm::Module*>(cptr_value(pair_car(Args)));
+    if (!m) {
+        return Scheme->F;
+    }
+    auto filename = string_value(pair_cadr(Args));
+
+    // Get target triple from module or use host
+    std::string triple = m->getTargetTriple().str();
+    if (triple.empty()) {
+        triple = llvm::sys::getProcessTriple();
+    }
+
+    // Look up the target
+    std::string error;
+    auto target = llvm::TargetRegistry::lookupTarget(triple, error);
+    if (!target) {
+        std::cerr << "llvm:emit-object-file: " << error << std::endl;
+        return Scheme->F;
+    }
+
+    // Get CPU and features
+    std::string cpu = extemp::UNIV::CPU.empty() ?
+        std::string(llvm::sys::getHostCPUName()) : extemp::UNIV::CPU;
+
+    std::string features;
+    auto hostFeatures = llvm::sys::getHostCPUFeatures();
+    for (auto& feature : hostFeatures) {
+        if (!features.empty()) features += ",";
+        features += (feature.getValue() ? "+" : "-");
+        features += feature.getKey().str();
+    }
+
+    // Create target machine
+    llvm::TargetOptions opt;
+    opt.GuaranteedTailCallOpt = true;  // equivalent to llc -tailcallopt
+    auto targetMachine = target->createTargetMachine(
+        llvm::Triple(triple), cpu, features, opt,
+        llvm::Reloc::PIC_,
+        std::nullopt,
+        llvm::CodeGenOptLevel::Aggressive);
+
+    if (!targetMachine) {
+        std::cerr << "llvm:emit-object-file: failed to create target machine" << std::endl;
+        return Scheme->F;
+    }
+
+    // Set up data layout
+    m->setDataLayout(targetMachine->createDataLayout());
+
+    // Open output file
+    std::error_code ec;
+    llvm::raw_fd_ostream dest(filename, ec, llvm::sys::fs::OF_None);
+    if (ec) {
+        std::cerr << "llvm:emit-object-file: " << ec.message() << std::endl;
+        delete targetMachine;
+        return Scheme->F;
+    }
+
+    // Emit object file
+    llvm::legacy::PassManager pass;
+    if (targetMachine->addPassesToEmitFile(pass, dest, nullptr,
+            llvm::CodeGenFileType::ObjectFile)) {
+        std::cerr << "llvm:emit-object-file: target machine can't emit object files" << std::endl;
+        delete targetMachine;
+        return Scheme->F;
+    }
+
+    pass.run(*m);
+    dest.flush();
+    delete targetMachine;
+
+    return Scheme->T;
+}
+
 #define LLVM_DEFS \
         { "llvm:optimize", &optimizeCompiles }, \
         { "llvm:optimization-level", &optimizationLevel }, \
@@ -804,4 +880,5 @@ static pointer export_llvmmodule_bitcode(scheme* Scheme, pointer Args)
         { "llvm:add-llvm-alias", &add_llvm_alias }, \
         { "llvm:get-llvm-alias", &get_llvm_alias }, \
         { "llvm:get-named-type", &get_named_type }, \
-        { "llvm:export-module", &export_llvmmodule_bitcode }
+        { "llvm:export-module", &export_llvmmodule_bitcode }, \
+        { "llvm:emit-object-file", &emitModuleToObjectFile }
