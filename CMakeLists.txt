@@ -474,6 +474,17 @@ if(WIN32)
 
 else()
     # Unix: parallel AOT compilation with proper dependencies
+    # Use timeout to kill stuck processes and release ports
+    if(APPLE)
+        find_program(TIMEOUT_CMD gtimeout)
+        if(NOT TIMEOUT_CMD)
+            find_program(TIMEOUT_CMD timeout)
+        endif()
+    else()
+        find_program(TIMEOUT_CMD timeout)
+    endif()
+    set(AOT_TIMEOUT_SECONDS 300)
+
     macro(aotcompile_lib libfile group)
         get_filename_component(_basename ${libfile} NAME_WE)
         set(_targetname aot_${_basename})
@@ -481,15 +492,21 @@ else()
 
         extempore_get_next_port(_port)
 
+        if(TIMEOUT_CMD)
+            set(_extempore_cmd ${TIMEOUT_CMD} --kill-after=10 ${AOT_TIMEOUT_SECONDS} $<TARGET_FILE:extempore>)
+        else()
+            set(_extempore_cmd $<TARGET_FILE:extempore>)
+        endif()
+
         if(PACKAGE)
             add_custom_command(OUTPUT ${_filename}
-        COMMAND extempore --nobase --noaudio --mcpu=generic --attr=none --port=${_port}
+        COMMAND ${_extempore_cmd} --nobase --noaudio --mcpu=generic --attr=none --port=${_port}
           --eval "(impc:aot:compile-xtm-file \"${libfile}\")"
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         VERBATIM)
         else()
             add_custom_command(OUTPUT ${_filename}
-        COMMAND extempore --nobase --noaudio --port=${_port}
+        COMMAND ${_extempore_cmd} --nobase --noaudio --port=${_port}
           --eval "(impc:aot:compile-xtm-file \"${libfile}\")"
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         VERBATIM)
