@@ -420,6 +420,8 @@ elseif(UNIX AND NOT APPLE)
     set_property(TARGET pcre PROPERTY POSITION_INDEPENDENT_CODE ON)
     set_property(TARGET extempore PROPERTY POSITION_INDEPENDENT_CODE ON)
     target_link_libraries(extempore PRIVATE dl)
+    # Export symbols to dynamic table so LLVM JIT can find them via dlsym
+    target_link_options(extempore PRIVATE -rdynamic)
 endif()
 
 if(WIN32)

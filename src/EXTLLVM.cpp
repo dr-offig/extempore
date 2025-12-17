@@ -615,6 +615,7 @@ int OPTIMIZATION_LEVEL = 2;  // Default to O2
 // Get function address - main lookup function
 uint64_t getFunctionAddress(const std::string& name) {
     if (!JIT) return 0;
+
     auto sym = JIT->lookup(name);
     if (!sym) {
         llvm::consumeError(sym.takeError());
@@ -648,8 +649,6 @@ bool removeSymbol(const std::string& name) {
 llvm::Error addTrackedModule(llvm::orc::ThreadSafeModule TSM, const std::vector<std::string>& symbolNames) {
     if (!JIT) return llvm::make_error<llvm::StringError>("JIT not initialized", llvm::inconvertibleErrorCode());
 
-    // Just add the module - symbol removal is handled by Scheme calling llvm:erase-function
-    // before compilation when redefinition is intended
     if (auto err = JIT->addIRModule(std::move(TSM))) {
         return err;
     }
