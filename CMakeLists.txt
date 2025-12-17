@@ -646,7 +646,7 @@ if(EXTERNAL_SHLIBS_GRAPHICS)
       -DASSIMP_BUILD_TESTS=OFF)
 
     if(UNIX)
-        add_custom_target(aot_external_graphics ALL)
+        add_custom_target(aot_external_graphics)
         set_target_properties(aot_external_graphics PROPERTIES FOLDER AOT)
 
         aotcompile_lib(libs/external/stb_image.xtm graphics base)

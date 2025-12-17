@@ -35,6 +35,13 @@ jobs:
           path: build/_deps
           key: ${{ matrix.os }}-llvm-${{ env.LLVM_VERSION }}-v3
 
+      - name: Restore AOT cache
+        id: cache-aot
+        uses: actions/cache/restore@v4
+        with:
+          path: libs/aot-cache
+          key: ${{ matrix.os }}-aot-${{ env.LLVM_VERSION }}-${{ hashFiles('libs/base/*.xtm', 'libs/core/*.xtm', 'libs/external/*.xtm', 'libs/external/**/*.xtm') }}
+
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -53,6 +60,13 @@ jobs:
         with:
           path: build/_deps
           key: ${{ matrix.os }}-llvm-${{ env.LLVM_VERSION }}-v3
+
+      - name: Save AOT cache
+        if: always() && steps.cache-aot.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: libs/aot-cache
+          key: ${{ matrix.os }}-aot-${{ env.LLVM_VERSION }}-${{ hashFiles('libs/base/*.xtm', 'libs/core/*.xtm', 'libs/external/*.xtm', 'libs/external/**/*.xtm') }}
 
       - name: Test
         run: ctest --test-dir build --build-config Release --label-regex libs-core --output-on-failure
