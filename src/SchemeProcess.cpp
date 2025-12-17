@@ -394,8 +394,8 @@ void* SchemeProcess::taskImpl()
                                 auto minutes(time / UNIV::MINUTE());
                                 time -= minutes * UNIV::MINUTE();
                                 auto seconds(time / UNIV::SECOND());
-                                char prompt[24];
-                                sprintf(prompt, "\n[extempore %.2u:%.2u:%.2u]: ", unsigned(hours), unsigned(minutes), unsigned(seconds));
+                                char prompt[32];
+                                snprintf(prompt, sizeof(prompt), "\n[extempore %.2u:%.2u:%.2u]: ", unsigned(hours), unsigned(minutes), unsigned(seconds));
                                 ss << prompt;
                             }
                             UNIV::printSchemeCell(m_scheme, ss, m_scheme->value);
@@ -521,8 +521,8 @@ void* SchemeProcess::serverImpl()
                 auto minutes(time / UNIV::MINUTE());
                 time -= minutes * UNIV::MINUTE();
                 auto seconds(time / UNIV::SECOND());
-                char prompt[23];
-                sprintf(prompt, "[extempore %.2u:%.2u:%.2u]: ", unsigned(hours), unsigned(minutes), unsigned(seconds));
+                char prompt[32];
+                snprintf(prompt, sizeof(prompt), "[extempore %.2u:%.2u:%.2u]: ", unsigned(hours), unsigned(minutes), unsigned(seconds));
                 outString += prompt;
             } else {
                 outString += "Welcome to extempore!";
@@ -578,8 +578,8 @@ void* SchemeProcess::serverImpl()
                     std::string::size_type end = evalStr.find_first_of('\x0d', pos);
                     for (; end != std::string::npos; pos = end + 2, end = evalStr.find_first_of('\x0d', pos)) {
                         EXTMonitor::ScopedLock lock(m_guard, true);
-                        char c[8];
-                        sprintf(c, "%i", int(sock));
+                        char c[16];
+                        snprintf(c, sizeof(c), "%i", int(sock));
                         std::string* s = new std::string(evalStr.substr(pos, end - pos + 1));
                         // std::cout << extemp::UNIV::TIME << "> SCHEME TASK WITH SUBEXPR:" << *s << std::endl;
                         m_taskQueue.push(SchemeTask(extemp::UNIV::TIME, m_maxDuration, s, c, SchemeTask::Type::REPL));

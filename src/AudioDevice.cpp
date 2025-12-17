@@ -545,7 +545,7 @@ static int findDevice(const std::string& Name)
     std::regex rgx(Name);
     std::cmatch m;
     int numDevices(Pa_GetDeviceCount());
-    for (unsigned i = 0; i < numDevices; ++i) {
+    for (int i = 0; i < numDevices; ++i) {
         if (std::regex_search(Pa_GetDeviceInfo(i)->name, m, rgx)) {
             return i;
         }

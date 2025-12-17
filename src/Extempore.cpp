@@ -419,7 +419,7 @@ EXPORT int extempore_init(int argc, char** argv)
         startup_ok &= primary->start();
         extemp::SchemeREPL* primary_repl = new extemp::SchemeREPL(primary_name, primary);
         primary_repl->connectToProcessAtHostname(host, primary_port);
-        //std::cout << "primary started:" << std::endl << std::flush;
+#endif
         if (!startup_ok) {
             ascii_error();
             printf("ERROR:");
@@ -427,6 +427,7 @@ EXPORT int extempore_init(int argc, char** argv)
             std::cout << " one or more processes failed to start, exiting." << std::endl;
             exit(1);
         }
+#ifndef SUBSUME_PRIMARY
         while (true) {
           if (XTMMainCallback) { XTMMainCallback(); }
 #ifdef _WIN32

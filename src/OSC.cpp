@@ -529,7 +529,6 @@ namespace extemp {
   // 0 = still filling packet + active escape is OFF
   // -1 = bad packet
   int parse_osc_slip_data(std::vector<char>* data, char* buf, int res, bool active_escape) {
-    std::vector<char>::iterator it = data->end();
     // copy buf into data
     for(int i=0;i<res;i++,buf++) {
       switch(*buf){
@@ -659,7 +658,7 @@ namespace extemp {
     FD_SET(socket_fd, &rfd); //add server socket to open sockets list
     int highest_fd = socket_fd+1;
     //printf("FD SIZE=%d  and %d\n",highest_fd,FD_SETSIZE);
-    int BUFLEN = 1024;
+    static constexpr int BUFLEN = 1024;
     char buf[BUFLEN];
     while(scm->getRunning()) {
       fd_set c_rfd;
@@ -707,7 +706,7 @@ namespace extemp {
       while(pos != client_sockets.end()) { // check through all fd's for matches against FD_ISSET
         if(FD_ISSET(*pos, &c_rfd)) { //see if any client sockets have data for us
           int sock = *pos;
-          for(int j=0; true; j++) { //read from stream in BUFLEN blocks
+          for(;;) { //read from stream in BUFLEN blocks
             res = read(sock, buf, BUFLEN);
             if(res == 0) { //close the socket
               FD_CLR(sock, &rfd);
