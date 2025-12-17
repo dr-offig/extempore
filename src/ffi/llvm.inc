@@ -387,7 +387,7 @@ static pointer call_compiled(scheme* Scheme, pointer Args)
         llvm::IRBuilder<> builder(entryBB);
 
         auto targetAddrConst = llvm::ConstantInt::get(ptrIntTy, addr);
-        auto targetPtr = llvm::ConstantExpr::getIntToPtr(targetAddrConst, funcType->getPointerTo());
+        auto targetPtr = llvm::ConstantExpr::getIntToPtr(targetAddrConst, llvm::PointerType::get(*ctx, 0));
         llvm::FunctionCallee callee(funcType, targetPtr);
 
         auto callInst = builder.CreateCall(callee, argConsts);
