@@ -165,7 +165,8 @@ if(EXTERNAL_SHLIBS)
         string(APPEND EXT_DEPS_CXX_FLAGS " -fPIC")
     endif()
     if(WIN32)
-        string(APPEND EXT_DEPS_C_FLAGS " /Dbzero(b,len)=memset((b),0,(len))")
+        # Define WIN32 (without underscore) for PortMidi's bzero compatibility macro
+        string(APPEND EXT_DEPS_C_FLAGS " /DWIN32")
     endif()
 endif()
 
