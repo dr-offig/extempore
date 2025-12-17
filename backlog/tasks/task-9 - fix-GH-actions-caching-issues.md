@@ -1,10 +1,10 @@
 ---
 id: task-9
 title: fix GH actions caching issues
-status: In Progress
+status: Done
 assignee: []
 created_date: '2025-12-17 05:55'
-updated_date: '2025-12-17 06:00'
+updated_date: '2025-12-17 06:15'
 labels: []
 dependencies: []
 ---
@@ -31,4 +31,13 @@ Commit: 924be82f
 Run: https://github.com/digego/extempore/actions/runs/20293247026
 
 Waiting for run to complete to verify caches are created for all platforms.
+
+## Verified working (2025-12-17)
+
+All three platform caches now exist:
+- ubuntu-24.04-llvm-21.1.7 (414.65 MiB)
+- windows-2022-llvm-21.1.7 (376.08 MiB) 
+- macos-15-llvm-21.1.7 (451.96 MiB)
+
+Windows cache was saved despite build failure, confirming the `always()` condition works correctly.
 <!-- SECTION:NOTES:END -->
