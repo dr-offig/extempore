@@ -407,6 +407,8 @@ EXPORT inline int is_rational(pointer Ptr) { return Ptr->_object._number.num_typ
 EXPORT inline char*& strvalue(pointer Ptr) { return Ptr->_object._string._svalue; }
 EXPORT inline auto strlength(pointer Ptr) -> decltype(cell::_object._string._length)& { return Ptr->_object._string._length; }
 
+} // extern "C"
+
 class ScmRuntimeError {
 public:
   ScmRuntimeError(const char* _msg, pointer _p) {msg = _msg;p = _p;};
@@ -420,8 +422,6 @@ inline char* string_value(pointer Ptr)
         throw ScmRuntimeError("Attempting to return a string from a non-string obj", Ptr);
     }
     return strvalue(Ptr);
-}
-
 }
 
 #endif
