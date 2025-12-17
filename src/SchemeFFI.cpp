@@ -165,15 +165,16 @@ namespace SchemeFFI {
 static std::regex sDefineSymRegex("define[^\\n]+@([-a-zA-Z$._][-a-zA-Z$._0-9]*)", std::regex::optimize | std::regex::ECMAScript);
 static std::regex sDeclareSymRegex("declare[^\\n]+@([-a-zA-Z$._][-a-zA-Z$._0-9]*)", std::regex::optimize | std::regex::ECMAScript);
 
-static std::regex sExternalGlobalRegex("^@([-a-zA-Z$._][-a-zA-Z$._0-9]*)\\s*=\\s*external\\s+global\\s+(\\S+)",
-                                        std::regex::optimize | std::regex::multiline);
+// MSVC doesn't support std::regex::multiline, so we use (?:^|\n) to match line starts
+static std::regex sExternalGlobalRegex("(?:^|\\n)@([-a-zA-Z$._][-a-zA-Z$._0-9]*)\\s*=\\s*external\\s+global\\s+(\\S+)",
+                                        std::regex::optimize);
 
-static std::regex sExternalDeclareRegex("^\\s*declare\\s+cc\\s+0\\s+([^@]+)\\s+@([^(]+)\\(([^)]*)\\)(?:\\s+nounwind)?\\s*$",
-                                        std::regex::optimize | std::regex::multiline);
+static std::regex sExternalDeclareRegex("(?:^|\\n)\\s*declare\\s+cc\\s+0\\s+([^@]+)\\s+@([^(]+)\\(([^)]*)\\)(?:\\s+nounwind)?\\s*(?:$|\\n)",
+                                        std::regex::optimize);
 
 static std::regex sGlobalSymRegex("[ \t]@([-a-zA-Z$._][-a-zA-Z$._0-9]*)", std::regex::optimize);
-static std::regex sGlobalVarDefRegex("^@([-a-zA-Z$._][-a-zA-Z$._0-9]*)\\s*=", std::regex::optimize | std::regex::multiline);
-static std::regex sTypeDefRegex("^\\s*(%[-a-zA-Z$._0-9]+)\\s*=\\s*type\\s+(.+)$", std::regex::multiline);
+static std::regex sGlobalVarDefRegex("(?:^|\\n)@([-a-zA-Z$._][-a-zA-Z$._0-9]*)\\s*=", std::regex::optimize);
+static std::regex sTypeDefRegex("(?:^|\\n)\\s*(%[-a-zA-Z$._0-9]+)\\s*=\\s*type\\s+([^\\n]+)", std::regex::optimize);
 static std::regex sTypeSuffixRegex("%([a-zA-Z_$][a-zA-Z0-9_$-]*)\\.[0-9]+");
 
 void initSchemeFFI(scheme* sc)
@@ -572,8 +573,8 @@ static llvm::Module* jitCompile(const std::string& String)
             std::string strippedAsmcode = stripBuiltinTypeDefs(asmcode);
 
             // Also strip declarations of symbols that are already in sInlineSyms.
-            static std::regex declareLineRegex("^\\s*declare[^\\n]+@([-a-zA-Z$._][-a-zA-Z$._0-9]*)[^\\n]*\\n?",
-                                               std::regex::optimize | std::regex::multiline);
+            static std::regex declareLineRegex("(?:^|\\n)\\s*declare[^\\n]+@([-a-zA-Z$._][-a-zA-Z$._0-9]*)[^\\n]*\\n?",
+                                               std::regex::optimize);
             std::string result;
             std::sregex_iterator it(strippedAsmcode.begin(), strippedAsmcode.end(), declareLineRegex);
             std::sregex_iterator endIt;
