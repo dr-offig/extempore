@@ -22,7 +22,6 @@ jobs:
             name: macOS aarch64
           - os: windows-2022
             name: Windows x86_64
-            cmake-generator: -G "Visual Studio 17 2022" -A x64
 
     name: ${{ matrix.name }}
 
@@ -34,57 +33,26 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: build/_deps
-          key: ${{ matrix.os }}-llvm-${{ env.LLVM_VERSION }}-v2
-
-      - name: Fix timestamps after cache restore (Unix)
-        if: runner.os != 'Windows' && steps.cache-llvm.outputs.cache-hit == 'true'
-        run: |
-          # Ninja uses mtime to determine if rebuilding is needed.
-          # After cache extraction, files get new timestamps that can cause
-          # Ninja to think sources are newer than objects and rebuild everything.
-          # Fix by setting all source files to a past time, then objects to now.
-          if [ -d "build/_deps/llvm-src" ]; then
-            echo "Setting LLVM source timestamps to past..."
-            find build/_deps/llvm-src -type f -exec touch -t 202001010000 {} + 2>/dev/null || true
-          fi
-          if [ -d "build/_deps/llvm-build" ]; then
-            echo "Setting LLVM build artifact timestamps to now..."
-            find build/_deps/llvm-build -type f -exec touch {} + 2>/dev/null || true
-          fi
-          if [ -d "build/_deps/llvm-subbuild" ]; then
-            echo "Setting LLVM subbuild timestamps to now..."
-            find build/_deps/llvm-subbuild -type f -exec touch {} + 2>/dev/null || true
-          fi
+          key: ${{ matrix.os }}-llvm-${{ env.LLVM_VERSION }}-v3
 
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libasound2-dev xorg-dev libglu1-mesa-dev ninja-build
+          sudo apt-get install -y libasound2-dev xorg-dev libglu1-mesa-dev
 
-      - name: Install dependencies (macOS)
-        if: runner.os == 'macOS'
-        run: brew install ninja
-
-      - name: Configure (Unix)
-        if: runner.os != 'Windows'
-        run: |
-          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON
-
-      - name: Configure (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          cmake -B build -DBUILD_TESTS=ON ${{ matrix.cmake-generator }}
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON
 
       - name: Build
-        run: cmake --build build --config Release -j2
+        run: cmake --build build --config Release --parallel 2
 
       - name: Save LLVM cache
         if: always() && steps.cache-llvm.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: build/_deps
-          key: ${{ matrix.os }}-llvm-${{ env.LLVM_VERSION }}-v2
+          key: ${{ matrix.os }}-llvm-${{ env.LLVM_VERSION }}-v3
 
       - name: Test
         run: ctest --test-dir build --build-config Release --label-regex libs-core --output-on-failure
