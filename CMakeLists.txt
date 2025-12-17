@@ -405,7 +405,7 @@ if(UNIX)
 endif()
 
 if(WIN32)
-    target_compile_definitions(extempore PRIVATE -DPCRE_STATIC -D_CRT_SECURE_NO_WARNINGS)
+    target_compile_definitions(extempore PRIVATE -DPCRE_STATIC -D_CRT_SECURE_NO_WARNINGS -DNOMINMAX)
 elseif(APPLE)
     set(CMAKE_C_COMPILER clang)
     set(CMAKE_CXX_COMPILER clang++)
