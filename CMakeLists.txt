@@ -493,7 +493,8 @@ else()
     macro(aotcompile_lib libfile group)
         get_filename_component(_basename ${libfile} NAME_WE)
         set(_targetname aot_${_basename})
-        set(_filename ${CMAKE_SOURCE_DIR}/libs/aot-cache/xtm${_basename}.ll)
+        set(_ll_file ${CMAKE_SOURCE_DIR}/libs/aot-cache/xtm${_basename}.ll)
+        set(_xtm_file ${CMAKE_SOURCE_DIR}/libs/aot-cache/${_basename}.xtm)
 
         if(TIMEOUT_CMD)
             set(_extempore_cmd ${TIMEOUT_CMD} --kill-after=10 ${AOT_TIMEOUT_SECONDS} $<TARGET_FILE:extempore>)
@@ -501,21 +502,30 @@ else()
             set(_extempore_cmd $<TARGET_FILE:extempore>)
         endif()
 
+        # Build list of dependency files (both .ll and .xtm for each dep)
+        set(_dep_files "")
+        foreach(_dep ${ARGN})
+            list(APPEND _dep_files ${CMAKE_SOURCE_DIR}/libs/aot-cache/xtm${_dep}.ll)
+            list(APPEND _dep_files ${CMAKE_SOURCE_DIR}/libs/aot-cache/${_dep}.xtm)
+        endforeach()
+
         if(PACKAGE)
-            add_custom_command(OUTPUT ${_filename}
+            add_custom_command(OUTPUT ${_ll_file} ${_xtm_file}
         COMMAND ${_extempore_cmd} --nobase --noaudio --mcpu=generic --attr=none
           --batch "(impc:aot:compile-xtm-file \"${libfile}\")"
+        DEPENDS ${libfile} ${_dep_files}
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         VERBATIM)
         else()
-            add_custom_command(OUTPUT ${_filename}
+            add_custom_command(OUTPUT ${_ll_file} ${_xtm_file}
         COMMAND ${_extempore_cmd} --nobase --noaudio
           --batch "(impc:aot:compile-xtm-file \"${libfile}\")"
+        DEPENDS ${libfile} ${_dep_files}
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         VERBATIM)
         endif()
 
-        add_custom_target(${_targetname} DEPENDS ${_filename} extempore)
+        add_custom_target(${_targetname} DEPENDS ${_ll_file} ${_xtm_file} extempore)
         set_target_properties(${_targetname} PROPERTIES FOLDER AOT)
 
         if(NOT ${group} STREQUAL "core")
