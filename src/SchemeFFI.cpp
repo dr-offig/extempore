@@ -347,6 +347,29 @@ static void extractAndStoreTypeDefs(const std::string& ir) {
     }
 }
 
+// Strip built-in type definitions from incoming IR to avoid duplicates when prepending sInlineString.
+static std::string stripBuiltinTypeDefs(const std::string& ir) {
+    if (sBuiltinTypes.empty()) {
+        return ir;
+    }
+    std::string result = ir;
+    std::sregex_iterator it(ir.begin(), ir.end(), sTypeDefRegex);
+    std::sregex_iterator end;
+    // Collect matches to remove (iterate backwards to preserve positions).
+    std::vector<std::pair<size_t, size_t>> toRemove;
+    for (; it != end; ++it) {
+        std::string typeName = (*it)[1].str();
+        if (sBuiltinTypes.find(typeName) != sBuiltinTypes.end()) {
+            toRemove.push_back({it->position(), it->length()});
+        }
+    }
+    // Remove in reverse order to preserve positions.
+    for (auto rit = toRemove.rbegin(); rit != toRemove.rend(); ++rit) {
+        result.erase(rit->first, rit->second);
+    }
+    return result;
+}
+
 static llvm::Module* jitCompile(const std::string& String)
 {
     // Create some module to put our function into it.
@@ -499,15 +522,23 @@ static llvm::Module* jitCompile(const std::string& String)
                 if (newModule) {
                     llvm::raw_string_ostream bitstream(sInlineBitcode);
                     llvm::WriteBitcodeToFile(*newModule, bitstream);
+                    // After first compile, replace sInlineString with inline.ll + bitcode.ll declarations.
+                    // The inline.ll has the inline functions, and bitcode.ll has runtime declarations.
+                    // We need both for subsequent compilations.
+                    std::string inlineContent;
 #ifdef DYLIB
                     auto data = fs.open("runtime/inline.ll");
-                    sInlineString = std::string(data.begin(), data.end());
+                    inlineContent = std::string(data.begin(), data.end());
 #else
                     std::ifstream inStream(UNIV::SHARE_DIR + "/runtime/inline.ll");
                     std::stringstream inString;
                     inString << inStream.rdbuf();
-                    sInlineString = inString.str();
+                    inlineContent = inString.str();
 #endif
+                    // After first compile, sInlineString should contain ONLY inline.ll.
+                    // The declarations from bitcode.ll are already in sInlineBitcode (the compiled module),
+                    // so we don't need to prepend them again - doing so causes "invalid redefinition" errors.
+                    sInlineString = inlineContent;
                 } else {
                     std::cout << pa.getMessage().str() << std::endl;
                     abort();
@@ -536,10 +567,34 @@ static llvm::Module* jitCompile(const std::string& String)
                 }
             }
         } else {
-            // First compilation - include user type definitions and external lib functions.
-            std::string externalLibFunctions = getExternalLibFunctionsStringFiltered(asmcode);
-            asmcode = userTypeDefs + externalLibFunctions + asmcode;
-            newModule = parseAssemblyString(asmcode, pa, *ctx);
+            // First compilation - include sInlineString (with type definitions), user type definitions, and external lib functions.
+            // Strip built-in type definitions from asmcode to avoid duplicates with sInlineString.
+            std::string strippedAsmcode = stripBuiltinTypeDefs(asmcode);
+
+            // Also strip declarations of symbols that are already in sInlineSyms.
+            static std::regex declareLineRegex("^\\s*declare[^\\n]+@([-a-zA-Z$._][-a-zA-Z$._0-9]*)[^\\n]*\\n?",
+                                               std::regex::optimize | std::regex::multiline);
+            std::string result;
+            std::sregex_iterator it(strippedAsmcode.begin(), strippedAsmcode.end(), declareLineRegex);
+            std::sregex_iterator endIt;
+            size_t lastPos = 0;
+            for (; it != endIt; ++it) {
+                std::string symName = (*it)[1].str();
+                // Add content before this match.
+                result.append(strippedAsmcode, lastPos, it->position() - lastPos);
+                // Only keep the declaration if the symbol is NOT in sInlineSyms.
+                if (sInlineSyms.find(symName) == sInlineSyms.end()) {
+                    result.append(it->str());
+                }
+                lastPos = it->position() + it->length();
+            }
+            // Add remaining content.
+            result.append(strippedAsmcode, lastPos, strippedAsmcode.length() - lastPos);
+            strippedAsmcode = result;
+
+            std::string externalLibFunctions = getExternalLibFunctionsStringFiltered(strippedAsmcode);
+            strippedAsmcode = sInlineString + userTypeDefs + externalGlobals + externalLibFunctions + dstream.str() + strippedAsmcode;
+            newModule = parseAssemblyString(strippedAsmcode, pa, *ctx);
         }
 
         if (!newModule) {

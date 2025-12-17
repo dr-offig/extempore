@@ -193,7 +193,7 @@ static pointer get_function_pointer(scheme* Scheme, pointer Args)
     auto name(string_value(pair_car(Args)));
     auto addr = EXTLLVM::getFunctionAddress(name);
     if (!addr) {
-            return Scheme->F;
+        return Scheme->F;
     }
     return mk_cptr(Scheme, reinterpret_cast<void*>(addr));
 }
