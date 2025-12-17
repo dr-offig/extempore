@@ -123,4 +123,85 @@ Possible fixes to investigate:
 ### Related LLVM Changes
 
 LLVM 21 ORC JIT has significant API changes from earlier versions. The symbol resolution strategy may have changed.
+
+## Additional Findings
+
+### Functions Actually Work Despite Lookup Returning #f
+
+Testing shows:
+- `bind-func` creates functions that **execute correctly** (return right values)
+- `llvm:get-function-pointer` returns `#f` for function names
+- `llvm:get-function` (metadata lookup) also returns `#f`
+- The adhoc symbols ARE defined as `#<FOREIGN>` and work
+
+### Platform Difference Hypothesis
+
+**Why macOS might work while Linux fails:**
+
+The issue appears to be in the early startup/AOT loading path, not in `bind-func` itself. The error occurs during `sys:load "libs/base/base.xtm"` when trying to compile an expression:
+
+```
+eval: unbound variable: xtlang_expression_adhoc_1_W2k4Kl0
+Trace: xtlang_expression <- impc:ti:get-expression-type <- sys:load
+```
+
+This happens BEFORE user code runs. Possible platform differences:
+1. **Cached state**: macOS might have AOT cache from older LLVM that still works
+2. **Symbol resolution timing**: ORC JIT might materialize symbols differently per platform
+3. **First compilation path**: The first jitCompile when `sInlineBitcode.empty()` might behave differently
+
+### Core Issue Identified
+
+The `impc:ti:get-expression-type` function tries to compile and run an `xtlang_expression` during type inference. This expression compilation fails because symbol lookup returns `#f`.
+
+But later `bind-func` calls work because by then the JIT is fully initialized and symbols are being materialized properly.
+
+### Next Investigation Steps
+
+1. Add debug output to `jitCompile` to see if first compilation path differs
+2. Check if symbols are in `sGlobalMap` after addModule()
+3. Check if `JIT->lookup()` error messages reveal anything
+4. Compare LLVM JIT configuration between platforms
+
+## macOS Verification Test
+
+**Purpose:** Determine if this is a Linux-specific issue or affects all platforms.
+
+### Test Procedure
+
+Run a completely clean build on macOS:
+
+```bash
+cd /path/to/extempore
+
+# IMPORTANT: Remove ALL cached state
+rm -rf build
+rm -rf libs/aot-cache
+
+# Fresh build
+mkdir build && cd build
+cmake .. && make -j$(sysctl -n hw.ncpu)
+```
+
+### Expected Outcomes
+
+**If macOS build FAILS with the same error:**
+```
+Loading xtmbase library... eval: unbound variable: xtlang_expression_adhoc_1_W2k4Kl0
+```
+→ Issue is **platform-agnostic**, related to LLVM 21 ORC JIT initialization. Fix should focus on the first compilation path in `jitCompile()`.
+
+**If macOS build SUCCEEDS:**
+→ Issue is **Linux-specific**. Investigate:
+- Symbol visibility differences (ELF vs Mach-O)
+- ORC JIT platform-specific behavior
+- Name mangling differences
+
+### What to Report
+
+After running the test, note:
+1. Did the build complete successfully?
+2. If failed, what was the exact error message?
+3. At what percentage/stage did it fail?
+4. Can you run `./extempore --batch '(bind-func test (lambda () 42)) (println (test))'` successfully?
 <!-- SECTION:NOTES:END -->
