@@ -416,6 +416,8 @@ public:
   pointer p;
 };
 
+extern "C" {
+
 inline char* string_value(pointer Ptr)
 {
     if (unlikely(!is_string(Ptr))) {
@@ -423,6 +425,8 @@ inline char* string_value(pointer Ptr)
     }
     return strvalue(Ptr);
 }
+
+} // extern "C"
 
 #endif
 
