@@ -38,6 +38,7 @@
 
 #include <fstream>
 #include <iostream>
+#include <sstream>
 
 // must be included before anything which pulls in <Windows.h>
 #include "llvm/ADT/StringExtras.h"
@@ -165,7 +166,9 @@ namespace SchemeFFI {
 static std::regex sDefineSymRegex("define[^\\n]+@([-a-zA-Z$._][-a-zA-Z$._0-9]*)", std::regex::optimize | std::regex::ECMAScript);
 static std::regex sDeclareSymRegex("declare[^\\n]+@([-a-zA-Z$._][-a-zA-Z$._0-9]*)", std::regex::optimize | std::regex::ECMAScript);
 
-// MSVC doesn't support std::regex::multiline, so we use (?:^|\n) to match line starts
+// Regex patterns for extraction. These use (?:^|\n) to match line starts since
+// MSVC doesn't support std::regex::multiline. The leading \n is consumed but
+// that's fine for extraction - we only use the capture groups.
 static std::regex sExternalGlobalRegex("(?:^|\\n)@([-a-zA-Z$._][-a-zA-Z$._0-9]*)\\s*=\\s*external\\s+global\\s+(\\S+)",
                                         std::regex::optimize);
 
@@ -175,6 +178,11 @@ static std::regex sExternalDeclareRegex("(?:^|\\n)\\s*declare\\s+cc\\s+0\\s+([^@
 static std::regex sGlobalSymRegex("[ \t]@([-a-zA-Z$._][-a-zA-Z$._0-9]*)", std::regex::optimize);
 static std::regex sGlobalVarDefRegex("(?:^|\\n)@([-a-zA-Z$._][-a-zA-Z$._0-9]*)\\s*=", std::regex::optimize);
 static std::regex sTypeDefRegex("(?:^|\\n)\\s*(%[-a-zA-Z$._0-9]+)\\s*=\\s*type\\s+([^\\n]+)", std::regex::optimize);
+
+// Line-based regex patterns for removal operations. These match from the start
+// of a line (no leading \n) and are used with line-by-line processing.
+static std::regex sTypeDefLineRegex("^\\s*(%[-a-zA-Z$._0-9]+)\\s*=\\s*type\\s+(.+)$", std::regex::optimize);
+static std::regex sDeclareLineRegex("^\\s*declare[^\\n]+@([-a-zA-Z$._][-a-zA-Z$._0-9]*).*$", std::regex::optimize);
 static std::regex sTypeSuffixRegex("%([a-zA-Z_$][a-zA-Z0-9_$-]*)\\.[0-9]+");
 
 void initSchemeFFI(scheme* sc)
@@ -349,24 +357,35 @@ static void extractAndStoreTypeDefs(const std::string& ir) {
 }
 
 // Strip built-in type definitions from incoming IR to avoid duplicates when prepending sInlineString.
+// Uses line-by-line processing to avoid multiline regex issues on Windows.
 static std::string stripBuiltinTypeDefs(const std::string& ir) {
     if (sBuiltinTypes.empty()) {
         return ir;
     }
-    std::string result = ir;
-    std::sregex_iterator it(ir.begin(), ir.end(), sTypeDefRegex);
-    std::sregex_iterator end;
-    // Collect matches to remove (iterate backwards to preserve positions).
-    std::vector<std::pair<size_t, size_t>> toRemove;
-    for (; it != end; ++it) {
-        std::string typeName = (*it)[1].str();
-        if (sBuiltinTypes.find(typeName) != sBuiltinTypes.end()) {
-            toRemove.push_back({it->position(), it->length()});
+    std::string result;
+    std::istringstream stream(ir);
+    std::string line;
+    bool first = true;
+    while (std::getline(stream, line)) {
+        std::smatch match;
+        bool keepLine = true;
+        if (std::regex_match(line, match, sTypeDefLineRegex)) {
+            std::string typeName = match[1].str();
+            if (sBuiltinTypes.find(typeName) != sBuiltinTypes.end()) {
+                keepLine = false;
+            }
+        }
+        if (keepLine) {
+            if (!first) {
+                result += '\n';
+            }
+            result += line;
+            first = false;
         }
     }
-    // Remove in reverse order to preserve positions.
-    for (auto rit = toRemove.rbegin(); rit != toRemove.rend(); ++rit) {
-        result.erase(rit->first, rit->second);
+    // Preserve trailing newline if original had one.
+    if (!ir.empty() && ir.back() == '\n') {
+        result += '\n';
     }
     return result;
 }
@@ -573,25 +592,35 @@ static llvm::Module* jitCompile(const std::string& String)
             std::string strippedAsmcode = stripBuiltinTypeDefs(asmcode);
 
             // Also strip declarations of symbols that are already in sInlineSyms.
-            static std::regex declareLineRegex("(?:^|\\n)\\s*declare[^\\n]+@([-a-zA-Z$._][-a-zA-Z$._0-9]*)[^\\n]*\\n?",
-                                               std::regex::optimize);
-            std::string result;
-            std::sregex_iterator it(strippedAsmcode.begin(), strippedAsmcode.end(), declareLineRegex);
-            std::sregex_iterator endIt;
-            size_t lastPos = 0;
-            for (; it != endIt; ++it) {
-                std::string symName = (*it)[1].str();
-                // Add content before this match.
-                result.append(strippedAsmcode, lastPos, it->position() - lastPos);
-                // Only keep the declaration if the symbol is NOT in sInlineSyms.
-                if (sInlineSyms.find(symName) == sInlineSyms.end()) {
-                    result.append(it->str());
+            // Uses line-by-line processing to avoid multiline regex issues on Windows.
+            {
+                std::string result;
+                std::istringstream stream(strippedAsmcode);
+                std::string line;
+                bool first = true;
+                while (std::getline(stream, line)) {
+                    std::smatch match;
+                    bool keepLine = true;
+                    if (std::regex_match(line, match, sDeclareLineRegex)) {
+                        std::string symName = match[1].str();
+                        if (sInlineSyms.find(symName) != sInlineSyms.end()) {
+                            keepLine = false;
+                        }
+                    }
+                    if (keepLine) {
+                        if (!first) {
+                            result += '\n';
+                        }
+                        result += line;
+                        first = false;
+                    }
                 }
-                lastPos = it->position() + it->length();
+                // Preserve trailing newline if original had one.
+                if (!strippedAsmcode.empty() && strippedAsmcode.back() == '\n') {
+                    result += '\n';
+                }
+                strippedAsmcode = result;
             }
-            // Add remaining content.
-            result.append(strippedAsmcode, lastPos, strippedAsmcode.length() - lastPos);
-            strippedAsmcode = result;
 
             std::string externalLibFunctions = getExternalLibFunctionsStringFiltered(strippedAsmcode);
             strippedAsmcode = sInlineString + userTypeDefs + externalGlobals + externalLibFunctions + dstream.str() + strippedAsmcode;
