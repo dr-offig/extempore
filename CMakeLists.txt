@@ -3,7 +3,6 @@ project(Extempore VERSION 0.8.9)
 
 option(ASSETS "download multimedia assets (approx 500MB)" OFF)
 option(BUILD_TESTS "build test targets (including examples)" ON)
-option(PACKAGE "set up install targets for packaging" OFF)
 
 option(EXTERNAL_SHLIBS_AUDIO "download & build audio-related external library dependencies" ON)
 option(EXTERNAL_SHLIBS_GRAPHICS "download & build graphics-related external library dependencies" OFF)
@@ -133,33 +132,13 @@ if(APPLE)
     endif()
 endif()
 
-if(PACKAGE)
-    if(NOT DEFINED CMAKE_OSX_DEPLOYMENT_TARGET)
-        set(CMAKE_OSX_DEPLOYMENT_TARGET 10.12)
-    endif()
-    set(ASSETS ON)
-    message(STATUS "Building Extempore for binary distribution (assets directory will be downloaded)")
-endif()
-
 # External shared library dependencies
 if(EXTERNAL_SHLIBS)
     include(ExternalProject)
     set(EXT_DEPS_INSTALL_DIR ${CMAKE_BINARY_DIR}/deps-install)
     set(EXT_PLATFORM_SHLIBS_DIR ${CMAKE_SOURCE_DIR}/libs/platform-shlibs)
-    if(PACKAGE)
-        if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64|ARM64")
-            set(EXT_DEPS_C_FLAGS "${CMAKE_C_FLAGS_RELEASE}")
-            set(EXT_DEPS_CXX_FLAGS "${CMAKE_CXX_FLAGS_RELEASE}")
-            message(STATUS "ARM64 detected: using native CPU tuning")
-        else()
-            set(EXT_DEPS_C_FLAGS "${CMAKE_C_FLAGS_RELEASE} -mtune=generic")
-            set(EXT_DEPS_CXX_FLAGS "${CMAKE_CXX_FLAGS_RELEASE} -mtune=generic")
-        endif()
-        message(STATUS "compiler flags for packaging:\nC    ${EXT_DEPS_C_FLAGS}\nCXX  ${EXT_DEPS_CXX_FLAGS}")
-    else()
-        set(EXT_DEPS_C_FLAGS "")
-        set(EXT_DEPS_CXX_FLAGS "")
-    endif()
+    set(EXT_DEPS_C_FLAGS "")
+    set(EXT_DEPS_CXX_FLAGS "")
     if(EXT_DYLIB)
         string(APPEND EXT_DEPS_C_FLAGS " -fPIC")
         string(APPEND EXT_DEPS_CXX_FLAGS " -fPIC")
@@ -206,10 +185,6 @@ add_library(pcre STATIC
   src/pcre/pcre_tables.c)
 
 target_compile_definitions(pcre PRIVATE -DHAVE_CONFIG_H)
-
-if(PACKAGE AND NOT CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64|ARM64")
-    target_compile_options(pcre PRIVATE -mtune=generic)
-endif()
 
 #############
 # portaudio #
@@ -373,12 +348,7 @@ if(UNIX AND NOT APPLE)
 endif()
 
 # compiler options
-if(PACKAGE)
-    target_compile_definitions(extempore PRIVATE -DEXT_SHARE_DIR=".")
-    if(NOT CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64|ARM64")
-        target_compile_options(extempore PRIVATE -mtune=generic)
-    endif()
-elseif(EXT_SHARE_DIR)
+if(EXT_SHARE_DIR)
     target_compile_definitions(extempore PRIVATE -DEXT_SHARE_DIR="${EXT_SHARE_DIR}")
 elseif(EXT_DYLIB)
     target_compile_definitions(extempore PRIVATE -DEXT_DYLIB=1 -DEXT_SHARE_DIR=".")
@@ -451,14 +421,7 @@ endif()
 # install #
 ###########
 
-if(NOT PACKAGE)
-    install(TARGETS extempore RUNTIME DESTINATION bin)
-else()
-    install(TARGETS extempore RUNTIME DESTINATION ".")
-    install(DIRECTORY assets runtime libs examples tests
-    DESTINATION "."
-    PATTERN ".DS_Store" EXCLUDE)
-endif()
+install(TARGETS extempore RUNTIME DESTINATION bin)
 
 ###################
 # AOT compilation #
@@ -511,21 +474,12 @@ else()
             list(APPEND _dep_files ${CMAKE_SOURCE_DIR}/libs/aot-cache/${_dep}.xtm)
         endforeach()
 
-        if(PACKAGE)
-            add_custom_command(OUTPUT ${_ll_file} ${_xtm_file}
-        COMMAND ${_extempore_cmd} --nobase --noaudio --mcpu=generic --attr=none
-          --batch "(impc:aot:compile-xtm-file \"${libfile}\")"
-        DEPENDS ${libfile} ${_dep_files}
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        VERBATIM)
-        else()
-            add_custom_command(OUTPUT ${_ll_file} ${_xtm_file}
-        COMMAND ${_extempore_cmd} --nobase --noaudio
-          --batch "(impc:aot:compile-xtm-file \"${libfile}\")"
-        DEPENDS ${libfile} ${_dep_files}
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        VERBATIM)
-        endif()
+        add_custom_command(OUTPUT ${_ll_file} ${_xtm_file}
+      COMMAND ${_extempore_cmd} --nobase --noaudio
+        --batch "(impc:aot:compile-xtm-file \"${libfile}\")"
+      DEPENDS ${libfile} ${_dep_files}
+      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+      VERBATIM)
 
         add_custom_target(${_targetname} DEPENDS ${_ll_file} ${_xtm_file} extempore)
         set_target_properties(${_targetname} PROPERTIES FOLDER AOT)
@@ -858,20 +812,3 @@ add_custom_target(xtmdoc
   COMMENT "Generating xtmdoc output in /tmp/xtmdoc.json"
   VERBATIM)
 add_dependencies(xtmdoc extempore)
-
-#########
-# cpack #
-#########
-
-set(CPACK_PACKAGE_NAME "Extempore")
-set(CPACK_PACKAGE_VENDOR "Andrew Sorensen")
-set(CPACK_PACKAGE_CONTACT "Ben Swift")
-set(CPACK_PACKAGE_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
-set(CPACK_PACKAGE_VERSION_MINOR ${PROJECT_VERSION_MINOR})
-set(CPACK_PACKAGE_VERSION_PATCH ${PROJECT_VERSION_PATCH})
-string(TIMESTAMP EXTEMPORE_BUILD_DATE "%Y%m%d")
-set(CPACK_PACKAGE_FILE_NAME extempore)
-set(CPACK_GENERATOR ZIP)
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "The Extempore programming environment (https://extemporelang.github.io)")
-
-include(CPack)
