@@ -435,11 +435,15 @@ static llvm::Module* jitCompile(const std::string& String)
                 std::sregex_token_iterator(), std::inserter(sInlineSyms, sInlineSyms.begin()));
 
         // Extract built-in type names from base runtime to avoid duplicate definitions.
+        // Uses line-by-line processing to avoid multiline regex issues on Windows.
         if (sBuiltinTypes.empty()) {
-            std::sregex_iterator it(sInlineString.begin(), sInlineString.end(), sTypeDefRegex);
-            std::sregex_iterator end;
-            for (; it != end; ++it) {
-                sBuiltinTypes.insert((*it)[1].str());
+            std::istringstream stream(sInlineString);
+            std::string line;
+            while (std::getline(stream, line)) {
+                std::smatch match;
+                if (std::regex_match(line, match, sTypeDefLineRegex)) {
+                    sBuiltinTypes.insert(match[1].str());
+                }
             }
         }
         {
