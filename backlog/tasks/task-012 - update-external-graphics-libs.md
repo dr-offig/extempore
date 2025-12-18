@@ -1,9 +1,10 @@
 ---
 id: task-012
 title: update external graphics libs
-status: To Do
+status: In Progress
 assignee: []
-created_date: "2025-12-18 00:35"
+created_date: '2025-12-18 00:35'
+updated_date: '2025-12-18 00:52'
 labels: []
 dependencies: []
 ---
@@ -21,3 +22,29 @@ visually/aurally inspecting the output (in the case of graphics/audio libs).
 
 Anyway, with those caveats aside, it might be worth _trying_ to update the
 graphics libs and see how we go.
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## Progress
+
+### Completed updates
+
+- **GLFW**: 3.2.1 → 3.4 ✓ (builds successfully)
+- **Assimp**: 3.2 → 5.4.3 ✓ (builds successfully)
+
+### Blocked updates
+
+- **stb**: The extemporelang/stb fork includes `stb_image_resize.h`, but upstream stb has replaced it with `stb_image_resize2.h` which has a completely different API. The xtlang bindings in `libs/external/stb_image.xtm` use the old resize functions (`stbir_resize_uint8`, `stbir_resize_float`, etc.). Updating would require:
+  1. Updating the C wrapper in the fork (`stb_image.c`)
+  2. Updating the xtlang bindings to use the new API signatures
+  
+  The new API returns pointers instead of int, and has different function names/signatures.
+
+- **nanovg**: The upstream (memononen/nanovg) is explicitly "not actively maintained". The extemporelang fork has custom CMake build integration. No benefit to updating.
+
+### Still to do
+
+- Test the graphics examples actually work with the updated GLFW/Assimp
+- Consider whether stb_image_resize is actually used and needs updating
+<!-- SECTION:NOTES:END -->
