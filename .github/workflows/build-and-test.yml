@@ -54,8 +54,19 @@ jobs:
       - name: Build
         run: cmake --build build --config Release --parallel 2
 
+      - name: Check LLVM build completeness
+        id: llvm-built
+        if: always()
+        shell: bash
+        run: |
+          if ls build/_deps/llvm-build/**/LLVMCore.* 2>/dev/null | head -1 | grep -q .; then
+            echo "complete=true" >> $GITHUB_OUTPUT
+          else
+            echo "complete=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Save LLVM cache
-        if: always() && steps.cache-llvm.outputs.cache-hit != 'true'
+        if: always() && steps.cache-llvm.outputs.cache-hit != 'true' && steps.llvm-built.outputs.complete == 'true'
         uses: actions/cache/save@v4
         with:
           path: build/_deps
