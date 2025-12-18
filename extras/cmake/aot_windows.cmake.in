@@ -1,0 +1,16 @@
+# Windows AOT compilation script
+# This runs sequentially since parallel AOT doesn't work reliably on Windows
+
+set(AOT_LIBS @AOT_LIBS_LIST@)
+
+foreach(aot_lib ${AOT_LIBS})
+    message(STATUS "AOT-compiling ${aot_lib}")
+    execute_process(
+        COMMAND ./extempore --nobase --noaudio --port 17099 --eval "(impc:aot:compile-xtm-file \"${aot_lib}\")"
+        WORKING_DIRECTORY @CMAKE_SOURCE_DIR@
+        TIMEOUT 900
+        RESULT_VARIABLE aot_retval)
+    if(NOT "${aot_retval}" STREQUAL 0)
+        message(WARNING "Problem compiling ${aot_lib}, error: ${aot_retval}")
+    endif()
+endforeach()

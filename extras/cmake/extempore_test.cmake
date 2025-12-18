@@ -5,47 +5,8 @@ set(CTEST_DROP_SITE "my.cdash.org")
 set(CTEST_DROP_LOCATION "/submit.php?project=Extempore")
 set(CTEST_DROP_SITE_CDASH TRUE)
 
-# Platform detection (shared logic with CMakeLists.txt)
-if(UNIX)
-  find_program(UNAME_PROGRAM uname)
-  execute_process(COMMAND ${UNAME_PROGRAM} -m
-    OUTPUT_VARIABLE UNAME_MACHINE_NAME
-    OUTPUT_STRIP_TRAILING_WHITESPACE)
-  execute_process(COMMAND ${UNAME_PROGRAM} -r
-    OUTPUT_VARIABLE UNAME_OS_RELEASE
-    OUTPUT_STRIP_TRAILING_WHITESPACE)
-  execute_process(COMMAND ${UNAME_PROGRAM} -s
-    OUTPUT_VARIABLE UNAME_OS_NAME
-    OUTPUT_STRIP_TRAILING_WHITESPACE)
-endif()
-
-if(APPLE)
-  set(EXTEMPORE_SYSTEM_NAME "osx")
-  execute_process(COMMAND sw_vers -productVersion
-    OUTPUT_VARIABLE EXTEMPORE_SYSTEM_VERSION
-    OUTPUT_STRIP_TRAILING_WHITESPACE)
-  string(REGEX MATCH "^[0-9]+\\.?[0-9]*" EXTEMPORE_SYSTEM_VERSION ${EXTEMPORE_SYSTEM_VERSION})
-  set(EXTEMPORE_SYSTEM_ARCHITECTURE ${UNAME_MACHINE_NAME})
-elseif(UNIX)
-  execute_process(COMMAND lsb_release -is
-    OUTPUT_VARIABLE EXTEMPORE_SYSTEM_NAME
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-    ERROR_QUIET)
-  if(NOT EXTEMPORE_SYSTEM_NAME)
-    set(EXTEMPORE_SYSTEM_NAME ${UNAME_OS_NAME})
-  endif()
-  set(EXTEMPORE_SYSTEM_VERSION ${UNAME_OS_RELEASE})
-  set(EXTEMPORE_SYSTEM_ARCHITECTURE ${UNAME_MACHINE_NAME})
-elseif(WIN32)
-  set(EXTEMPORE_SYSTEM_NAME "Windows")
-  string(REGEX MATCH "^[0-9]+" EXTEMPORE_SYSTEM_VERSION ${CMAKE_SYSTEM_VERSION})
-  if(EXTEMPORE_SYSTEM_VERSION LESS 10)
-    math(EXPR EXTEMPORE_SYSTEM_VERSION "${EXTEMPORE_SYSTEM_VERSION} + 1")
-  endif()
-  set(EXTEMPORE_SYSTEM_ARCHITECTURE ${CMAKE_SYSTEM_PROCESSOR})
-else()
-  message(FATAL_ERROR "Sorry, Extempore isn't supported on this platform - macOS, Linux & Windows only.")
-endif()
+include(${CMAKE_CURRENT_LIST_DIR}/platform.cmake)
+extempore_detect_platform()
 
 set(CTEST_BUILD_NAME "${EXTEMPORE_SYSTEM_NAME}-${EXTEMPORE_SYSTEM_VERSION}-${EXTEMPORE_SYSTEM_ARCHITECTURE}")
 
@@ -53,27 +14,28 @@ find_program(CTEST_GIT_COMMAND NAMES git)
 set(CTEST_UPDATE_COMMAND "${CTEST_GIT_COMMAND}")
 
 if(UNIX)
-  set(CTEST_BASE_DIRECTORY "/tmp/extempore-ctest")
+    set(CTEST_BASE_DIRECTORY "/tmp/extempore-ctest")
 elseif(WIN32)
-  set(CTEST_BASE_DIRECTORY "$ENV{HOMEPATH}/extempore-ctest")
+    set(CTEST_BASE_DIRECTORY "$ENV{HOMEPATH}/extempore-ctest")
 endif()
 
 set(CTEST_SOURCE_DIRECTORY "${CTEST_BASE_DIRECTORY}/source")
 set(CTEST_BINARY_DIRECTORY "${CTEST_BASE_DIRECTORY}/build")
 
 if(NOT EXISTS "${CTEST_BASE_DIRECTORY}/source")
-  set(CTEST_CHECKOUT_COMMAND "${CTEST_GIT_COMMAND} clone https://github.com/digego/extempore.git source")
+    set(CTEST_CHECKOUT_COMMAND "${CTEST_GIT_COMMAND} clone https://github.com/digego/extempore.git source")
 endif()
 
 if(UNIX)
-  set(CTEST_CMAKE_GENERATOR "Unix Makefiles")
+    set(CTEST_CMAKE_GENERATOR "Unix Makefiles")
 elseif(WIN32)
-  set(CTEST_CMAKE_GENERATOR "Visual Studio 14 2015 Win64")
+    # Let CMake auto-detect the available Visual Studio version
+    # This avoids hardcoding an outdated generator
 endif()
 
 ctest_start(Continuous)
 ctest_update()
 ctest_configure()
-ctest_build(CONFIGURATION Release TARGET aot_extended)
+ctest_build(CONFIGURATION Release TARGET aot_core)
 ctest_test()
 ctest_submit()
