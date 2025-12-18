@@ -11,25 +11,25 @@ A programming environment for cyberphysical programming (Linux/macOS/Windows).
 Download [VSCode](https://code.visualstudio.com/), install the Extempore
 extension and then use the _Extempore: Download binary_ command to do the rest.
 
-**Note**: Extempore's binary releases are [built
-automatically](https://github.com/digego/extempore/actions?query=workflow%3ARelease)
+**Note**: Extempore's binary releases are
+[built automatically](https://github.com/digego/extempore/actions?query=workflow%3ARelease)
 for Windows, macOS and Linux (Linux release are built on Ubuntu, on other
 distros YMMV).
 
-For more details, head to the [Quickstart
-page](https://extemporelang.github.io/docs/overview/quickstart/) in Extempore's
-online docs.
+For more details, head to the
+[Quickstart page](https://extemporelang.github.io/docs/overview/quickstart/) in
+Extempore's online docs.
 
 ### The _slightly_ harder way (for those who don't want to use VSCode)
 
-Download the latest [binary
-release](https://github.com/digego/extempore/releases) for your platform, unzip
-it and run `extempore` (`extempore.exe` on Windows) from inside the `extempore`
-folder.
+Download the latest
+[binary release](https://github.com/digego/extempore/releases) for your
+platform, unzip it and run `extempore` (`extempore.exe` on Windows) from inside
+the `extempore` folder.
 
-Then, [set up your text editor of
-choice](https://extemporelang.github.io/docs/guides/editor-support/) and away
-you go.
+Then,
+[set up your text editor of choice](https://extemporelang.github.io/docs/guides/editor-support/)
+and away you go.
 
 ### Build from source
 
@@ -42,7 +42,7 @@ some one-liner build commands:
 On **Linux/macOS**:
 
     git clone https://github.com/digego/extempore && mkdir extempore/build && cd extempore/build && cmake -DASSETS=ON .. && make && sudo make install
-    
+
 On **Windows** (if you're using VS2019---adjust as necessary for your VS
 version):
 
@@ -62,18 +62,18 @@ Check out these videos:
 - [Interactive, distributed, physics simulation](https://vimeo.com/126577281)
 - [Programming in Time](https://www.youtube.com/watch?v=Sg2BjFQnr9s)
 - [The Physics Playroom - interactive installation](https://vimeo.com/58239256)
-- [An *old* Graphics Demo](https://vimeo.com/37293927)
+- [An _old_ Graphics Demo](https://vimeo.com/37293927)
 - [A Programmer's Guide to Western Music](https://www.youtube.com/watch?v=xpSYWd_aIiI)
 - [Ben's livecoding gig videos](https://benswift.me/livecoding/)
 
 ## Contributors
 
-The Extempore core team is [Andrew Sorensen](https://github.com/digego) & [Ben
-Swift](https://github.com/benswift). [Jim Kuhn](https://github.com/JimKuhn)
+The Extempore core team is [Andrew Sorensen](https://github.com/digego) &
+[Ben Swift](https://github.com/benswift). [Jim Kuhn](https://github.com/JimKuhn)
 contributed significant performance improvements, which are not reflected in the
-commit logs, but for which we are extremely grateful.  Many others have
-contributed to Extempore's development ([see the full
-list](https://github.com/digego/extempore/graphs/contributors)).
+commit logs, but for which we are extremely grateful. Many others have
+contributed to Extempore's development
+([see the full list](https://github.com/digego/extempore/graphs/contributors)).
 
 ## Docs & Community
 
@@ -92,32 +92,31 @@ You can also join the Extempore community:
 
 ## Licence
 
-Copyright (c) 2011-2020, Andrew Sorensen
+Copyright (c) 2011-2025, Andrew Sorensen
 
 All rights reserved.
 
-Redistribution and use in source and binary forms, with or without 
-modification, are permitted provided that the following conditions are met:
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
 
-1. Redistributions of source code must retain the above copyright notice, 
-   this list of conditions and the following disclaimer.
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
 
 2. Redistributions in binary form must reproduce the above copyright notice,
-   this list of conditions and the following disclaimer in the documentation 
+   this list of conditions and the following disclaimer in the documentation
    and/or other materials provided with the distribution.
 
-Neither the name of the authors nor other contributors may be used to endorse
-or promote products derived from this software without specific prior written 
+Neither the name of the authors nor other contributors may be used to endorse or
+promote products derived from this software without specific prior written
 permission.
 
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" 
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE 
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
-ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE 
-LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR 
-CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF 
-SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS 
-INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN 
-CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) 
-ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
-POSSIBILITY OF SUCH DAMAGE.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
