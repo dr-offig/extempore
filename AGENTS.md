@@ -23,6 +23,10 @@ ctest --label-regex libs-external -j4  # external library tests
 
 Tests are `.xtm` files in `tests/`. They use `--noaudio` mode automatically.
 
+NOTE: this project uses GitHub Actions (in particular the
+`.github/workflows/build-and-test.yml` workflow) to build and test on Linux
+(x64), macOS (arm64), and Windows (x64).
+
 ## Structure
 
 | Directory         | Purpose                                               |
