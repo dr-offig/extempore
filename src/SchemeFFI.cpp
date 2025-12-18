@@ -567,7 +567,9 @@ static llvm::Module* jitCompile(const std::string& String)
                     // After first compile, sInlineString should contain ONLY inline.ll.
                     // The declarations from bitcode.ll are already in sInlineBitcode (the compiled module),
                     // so we don't need to prepend them again - doing so causes "invalid redefinition" errors.
-                    sInlineString = inlineContent;
+                    // Also strip built-in type definitions from inline.ll to avoid duplicates with init.ll
+                    // (which is compiled at startup and already defines %mzone, %clsvar, etc.).
+                    sInlineString = stripBuiltinTypeDefs(inlineContent);
                 } else {
                     std::cout << pa.getMessage().str() << std::endl;
                     abort();
