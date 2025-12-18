@@ -446,21 +446,6 @@ static llvm::Module* jitCompile(const std::string& String)
                 }
             }
         }
-        {
-#ifdef DYLIB
-            auto data = fs.open("runtime/inline.ll");
-            std::string tString = std::string(data.begin(), data.end());
-#else
-            std::ifstream inStream(UNIV::SHARE_DIR + "/runtime/inline.ll");
-            std::stringstream inString;
-            inString << inStream.rdbuf();
-            std::string tString = inString.str();
-#endif
-            std::copy(std::sregex_token_iterator(tString.begin(), tString.end(), sGlobalSymRegex, 1),
-                    std::sregex_token_iterator(), std::inserter(sInlineSyms, sInlineSyms.begin()));
-            std::copy(std::sregex_token_iterator(tString.begin(), tString.end(), sGlobalVarDefRegex, 1),
-                    std::sregex_token_iterator(), std::inserter(sInlineSyms, sInlineSyms.begin()));
-        }
     }
 
     // Detect if this is a bind-lib declaration.
@@ -544,6 +529,8 @@ static llvm::Module* jitCompile(const std::string& String)
 
     EXTLLVM::getThreadSafeContext().withContextDo([&](LLVMContext* ctx) {
         // Initialize inline bitcode.
+        // On first real compile (not the very first call), compile sInlineString (bitcode.ll)
+        // into binary bitcode for faster loading on subsequent compiles.
         if (sInlineBitcode.empty()) {
             static bool first(true);
             if (!first) {
@@ -551,25 +538,19 @@ static llvm::Module* jitCompile(const std::string& String)
                 if (newModule) {
                     llvm::raw_string_ostream bitstream(sInlineBitcode);
                     llvm::WriteBitcodeToFile(*newModule, bitstream);
-                    // After first compile, replace sInlineString with inline.ll + bitcode.ll declarations.
-                    // The inline.ll has the inline functions, and bitcode.ll has runtime declarations.
-                    // We need both for subsequent compilations.
-                    std::string inlineContent;
-#ifdef DYLIB
-                    auto data = fs.open("runtime/inline.ll");
-                    inlineContent = std::string(data.begin(), data.end());
-#else
-                    std::ifstream inStream(UNIV::SHARE_DIR + "/runtime/inline.ll");
-                    std::stringstream inString;
-                    inString << inStream.rdbuf();
-                    inlineContent = inString.str();
-#endif
-                    // After first compile, sInlineString should contain ONLY inline.ll.
-                    // The declarations from bitcode.ll are already in sInlineBitcode (the compiled module),
-                    // so we don't need to prepend them again - doing so causes "invalid redefinition" errors.
-                    // Also strip built-in type definitions from inline.ll to avoid duplicates with init.ll
-                    // (which is compiled at startup and already defines %mzone, %clsvar, etc.).
-                    sInlineString = stripBuiltinTypeDefs(inlineContent);
+                    // After first compile, reduce sInlineString to just type definitions.
+                    // The bitcode module has all the compiled code, but parseAssemblyInto
+                    // needs type definitions in the IR text to resolve type references.
+                    std::string typeDefs;
+                    std::istringstream stream(sInlineString);
+                    std::string line;
+                    while (std::getline(stream, line)) {
+                        std::smatch match;
+                        if (std::regex_match(line, match, sTypeDefLineRegex)) {
+                            typeDefs += line + "\n";
+                        }
+                    }
+                    sInlineString = typeDefs;
                 } else {
                     std::cout << pa.getMessage().str() << std::endl;
                     abort();

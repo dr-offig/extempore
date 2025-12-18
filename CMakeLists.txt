@@ -332,7 +332,6 @@ if(EXT_DYLIB)
     runtime/bitcode.ll
     runtime/init.ll
     runtime/init.xtm
-    runtime/inline.ll
     runtime/llvmir.xtm
     runtime/llvmti.xtm
     runtime/scheme.xtm)
