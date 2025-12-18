@@ -626,7 +626,6 @@
         ;; (glfwWindowHint GLFW_REFRESH_RATE (tref vidmode 5))
         (glfwWindowHint GLFW_DECORATED 0)
         (glfwWindowHint GLFW_AUTO_ICONIFY 1)
-        (register_for_window_events)
         (set! res (glfwCreateWindow width height window_title monitor null))
         (glfwSetWindowPos res 0 0)
         res))))
@@ -645,7 +644,6 @@
   (let ((window_title:i8* (zalloc 128)))
     (lambda (width height)
       (sprintf window_title "Extempore OpenGL Window")
-      (register_for_window_events)
       (glfwCreateWindow width height window_title null null))))
 
 (bind-func glfw_window_should_close
