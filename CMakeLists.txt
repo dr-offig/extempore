@@ -776,6 +776,16 @@ if(BUILD_TESTS)
         extempore_get_next_port(_port)
         add_test(NAME ${testfile}
       COMMAND extempore --noaudio --term nocolor --port=${_port}
+        --batch "(xtmtest-run-tests \"${testfile}\" #t #t)")
+        set_tests_properties(${testfile} PROPERTIES
+      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+      LABELS ${label})
+    endmacro()
+
+    macro(extempore_add_ipc_test testfile label)
+        extempore_get_next_port(_port)
+        add_test(NAME ${testfile}
+      COMMAND extempore --noaudio --term nocolor --port=${_port}
         --eval "(xtmtest-run-tests \"${testfile}\" #t #t)")
         set_tests_properties(${testfile} PROPERTIES
       WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
@@ -786,15 +796,15 @@ if(BUILD_TESTS)
         extempore_get_next_port(_port)
         add_test(NAME ${examplefile}
       COMMAND extempore --noaudio --term nocolor --port=${_port}
-        --eval "(sys:load-then-quit \"${examplefile}\" ${timeout})")
+        --batch "(sys:load-then-quit \"${examplefile}\" ${timeout})")
         set_tests_properties(${examplefile} PROPERTIES
       WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
       TIMEOUT 300
       LABELS ${label})
     endmacro()
 
-    # tests - core
-    extempore_add_test(tests/core/system.xtm libs-core)
+    # tests - core (system.xtm uses IPC so needs --eval instead of --batch)
+    extempore_add_ipc_test(tests/core/system.xtm libs-core)
     extempore_add_test(tests/core/adt.xtm libs-core)
     extempore_add_test(tests/core/math.xtm libs-core)
     extempore_add_test(tests/core/std.xtm libs-core)
