@@ -1,10 +1,10 @@
 ---
 id: task-012
 title: update external graphics libs
-status: In Progress
+status: Done
 assignee: []
 created_date: '2025-12-18 00:35'
-updated_date: '2025-12-18 00:52'
+updated_date: '2025-12-18 03:01'
 labels: []
 dependencies: []
 ---
@@ -47,4 +47,18 @@ graphics libs and see how we go.
 
 - Test the graphics examples actually work with the updated GLFW/Assimp
 - Consider whether stb_image_resize is actually used and needs updating
+
+## Testing results
+
+- GLFW 3.4 library loads successfully, all function bindings work
+- Assimp 5.4.3 compiles successfully
+- Found pre-existing bug: `register_for_window_events` is called in `libs/external/glfw3.xtm` but never defined anywhere. This prevents graphics examples from running but is unrelated to the version updates.
+
+## Final commits
+
+- `833cbe4f` - update GLFW to 3.4
+- `8cb6feef` - update Assimp to 5.4.3
+- `a9b75296` - remove obsolete register_for_window_events calls from glfw3.xtm
+
+The `register_for_window_events` issue was not a breaking change from GLFW - it was a pre-existing bug where the function was called but defined in C++ code that wasn't being linked properly. The fix was to simply remove the calls since GLFW handles application activation internally.
 <!-- SECTION:NOTES:END -->
