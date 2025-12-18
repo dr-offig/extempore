@@ -110,38 +110,18 @@ static pointer get_named_struct_size(scheme* Scheme, pointer Args)
     return mk_integer(Scheme, size);
 }
 
-static char tmp_str_a[1024];
-static char tmp_str_b[4096];
-
 static pointer get_function_args(scheme* Scheme, pointer Args)
 {
     auto func(extemp::EXTLLVM::getFunction(string_value(pair_car(Args))));
     if (!func) {
         return Scheme->F;
     }
-    std::string typestr;
-    llvm::raw_string_ostream ss(typestr);
-    func->getReturnType()->print(ss);
-    const char* tmp_name = ss.str().c_str();
-    const char* eq_type_string = " = type ";
-    if (func->getReturnType()->isStructTy()) {
-        rsplit(eq_type_string, tmp_name, tmp_str_a, tmp_str_b);
-        tmp_name = tmp_str_a;
-    }
-    pointer str = mk_string(Scheme, tmp_name);
+    pointer str = mk_string(Scheme, formatLLVMType(func->getReturnType()).c_str());
     pointer p = cons(Scheme, str, Scheme->NIL);
     for (const auto& arg : func->args()) {
         {
             EnvInjector injector(Scheme, p);
-            std::string typestr2;
-            llvm::raw_string_ostream ss2(typestr2);
-            arg.getType()->print(ss2);
-            tmp_name = ss2.str().c_str();
-            if (arg.getType()->isStructTy()) {
-                rsplit(eq_type_string, tmp_name, tmp_str_a, tmp_str_b);
-                tmp_name = tmp_str_a;
-            }
-            str = mk_string(Scheme, tmp_name);
+            str = mk_string(Scheme, formatLLVMType(arg.getType()).c_str());
         }
         p = cons(Scheme, str, p);
     }
@@ -692,21 +672,24 @@ static pointer get_named_type(scheme* Scheme, pointer Args)
         ++name;
     }
     int ptrDepth = 0;
-    int len(strlen(name) - 1);
-    while (len >= 0 && name[len--] == '*') {
+    int len = strlen(name) - 1;
+    while (len >= 0 && name[len] == '*') {
         ++ptrDepth;
+        --len;
     }
-    auto tt(getNamedType(std::string(name, len).c_str()));
-    if (tt) {
-        std::string typestr;
-        llvm::raw_string_ostream ss(typestr);
-        tt->print(ss);
-        auto tmp_name = ss.str().c_str();
-        if (tt->isStructTy()) {
-            rsplit(" = type ", tmp_name, tmp_str_a, tmp_str_b);
-            tmp_name = tmp_str_b;
+    auto st = getNamedType(std::string(name, len + 1).c_str());
+    if (st) {
+        std::string body;
+        llvm::raw_string_ostream ss(body);
+        ss << "{ ";
+        bool first = true;
+        for (auto* elem : st->elements()) {
+            if (!first) ss << ", ";
+            first = false;
+            elem->print(ss);
         }
-        return mk_string(Scheme, (std::string(tmp_str_b) + std::string(ptrDepth, '*')).c_str());
+        ss << " }";
+        return mk_string(Scheme, (ss.str() + std::string(ptrDepth, '*')).c_str());
     }
     return Scheme->NIL;
 }

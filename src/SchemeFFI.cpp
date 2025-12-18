@@ -150,6 +150,29 @@ namespace extemp {
 
 namespace SchemeFFI {
 
+static std::string formatLLVMType(llvm::Type* Type)
+{
+    if (auto* ST = llvm::dyn_cast<llvm::StructType>(Type)) {
+        if (ST->hasName()) {
+            llvm::StringRef name = ST->getName();
+            auto dotPos = name.rfind('.');
+            if (dotPos != llvm::StringRef::npos) {
+                llvm::StringRef suffix = name.substr(dotPos + 1);
+                bool isNumericSuffix = !suffix.empty() &&
+                    std::all_of(suffix.begin(), suffix.end(), ::isdigit);
+                if (isNumericSuffix) {
+                    return "%" + name.substr(0, dotPos).str();
+                }
+            }
+            return "%" + name.str();
+        }
+    }
+    std::string result;
+    llvm::raw_string_ostream ss(result);
+    Type->print(ss);
+    return ss.str();
+}
+
 #include "ffi/utility.inc"
 #include "ffi/ipc.inc"
 #include "ffi/assoc.inc"
@@ -183,8 +206,6 @@ static std::regex sTypeDefRegex("(?:^|\\n)\\s*(%[-a-zA-Z$._0-9]+)\\s*=\\s*type\\
 // of a line (no leading \n) and are used with line-by-line processing.
 static std::regex sTypeDefLineRegex("^\\s*(%[-a-zA-Z$._0-9]+)\\s*=\\s*type\\s+(.+)$", std::regex::optimize);
 static std::regex sDeclareLineRegex("^\\s*declare[^\\n]+@([-a-zA-Z$._][-a-zA-Z$._0-9]*).*$", std::regex::optimize);
-static std::regex sTypeSuffixRegex("%([a-zA-Z_$][a-zA-Z0-9_$-]*)\\.[0-9]+");
-
 void initSchemeFFI(scheme* sc)
 {
     static struct {
@@ -221,22 +242,6 @@ void initSchemeFFI(scheme* sc)
 }
 
 static long long llvm_emitcounter = 0;
-
-static std::string SanitizeType(llvm::Type* Type)
-{
-    std::string type;
-    llvm::raw_string_ostream typeStream(type);
-    Type->print(typeStream);
-    auto str(typeStream.str());
-    std::string::size_type pos(str.find('='));
-    if (pos != std::string::npos) {
-        str.erase(pos - 1);
-    }
-    // Strip numeric suffixes from named types.
-    str = std::regex_replace(str, sTypeSuffixRegex, "%$1");
-    return str;
-}
-
 
 // Track user-defined type definitions for LLVM 21's opaque pointers.
 // Each new type definition needs to be included in subsequent compilations.
@@ -505,7 +510,7 @@ static llvm::Module* jitCompile(const std::string& String)
         }
         auto func(llvm::dyn_cast<llvm::Function>(gv));
         if (func) {
-            dstream << "declare " << SanitizeType(func->getReturnType()) << " @" << sym << " (";
+            dstream << "declare " << formatLLVMType(func->getReturnType()) << " @" << sym << " (";
             bool first(true);
             for (const auto& arg : func->args()) {
                 if (!first) {
@@ -513,7 +518,7 @@ static llvm::Module* jitCompile(const std::string& String)
                 } else {
                     first = false;
                 }
-                dstream << SanitizeType(arg.getType());
+                dstream << formatLLVMType(arg.getType());
             }
             if (func->isVarArg()) {
                 dstream << ", ...";
@@ -522,7 +527,7 @@ static llvm::Module* jitCompile(const std::string& String)
         } else {
             auto globalVar = llvm::dyn_cast<llvm::GlobalVariable>(gv);
             if (globalVar) {
-                auto str(SanitizeType(globalVar->getValueType()));
+                auto str(formatLLVMType(globalVar->getValueType()));
                 dstream << '@' << sym << " = external global " << str << '\n';
             } else {
                 // Fallback for other global values.
