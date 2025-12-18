@@ -12,7 +12,29 @@ cmake --build . -j$(nproc)
 ```
 
 Key options: `-DASSETS=ON` (download multimedia assets), `-DBUILD_TESTS=ON`
-(default). LLVM 21 is auto-downloaded and built.
+(default).
+
+### LLVM dependency
+
+LLVM is fetched and built automatically via CMake's `FetchContent`. The version
+is pinned in `CMakeLists.txt` (currently 21.x). On first build, CMake downloads
+the LLVM source tarball and builds only the required components (OrcJIT, target
+codegen, AsmParser, Passes, MCDisassembler, IRPrinter).
+
+After configuration, LLVM sources and build artifacts are in:
+
+- `build/_deps/llvm-src/` --- LLVM source tree
+- `build/_deps/llvm-build/` --- LLVM build outputs (libraries, generated
+  headers)
+
+The LLVM headers used by extempore come from two locations:
+
+- `build/_deps/llvm-src/llvm/include/` --- static headers from source
+- `build/_deps/llvm-build/include/` --- generated headers (e.g. `llvm/Config/`)
+
+The first LLVM build takes significant time (~10-30 min depending on hardware).
+Subsequent builds reuse the cached LLVM artifacts. The GitHub Actions workflow
+caches `build/_deps/` to speed up CI builds.
 
 ## Test
 
