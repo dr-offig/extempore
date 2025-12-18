@@ -23,6 +23,9 @@ ctest --label-regex libs-external -j4  # external library tests
 
 Tests are `.xtm` files in `tests/`. They use `--noaudio` mode automatically.
 
+In addition, building the `aot_external_audio` target (the default) is a pretty
+good sign that things are working.
+
 NOTE: this project uses GitHub Actions (in particular the
 `.github/workflows/build-and-test.yml` workflow) to build and test on Linux
 (x64), macOS (arm64), and Windows (x64).
