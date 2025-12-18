@@ -78,6 +78,7 @@
 #include <mutex>
 #include <unordered_map>
 #include <set>
+#include <cmath>
 #include <cstdlib>
 #include "stdarg.h"
 
@@ -178,7 +179,7 @@ EXPORT double fp80_to_double_portable(const unsigned char* bytes)
     }
     if (exponent == 0x7FFF) {
         // Infinity or NaN - for audio sample rates, this shouldn't happen.
-        return sign ? -1.0/0.0 : 1.0/0.0;
+        return sign ? -INFINITY : INFINITY;
     }
 
     // Convert to double.
@@ -197,7 +198,7 @@ EXPORT double fp80_to_double_portable(const unsigned char* bytes)
 
         if (double_exp >= 2047) {
             // Overflow to infinity.
-            return sign ? -1.0/0.0 : 1.0/0.0;
+            return sign ? -INFINITY : INFINITY;
         } else if (double_exp <= 0) {
             // Underflow - denormalized or zero.
             return sign ? -0.0 : 0.0;

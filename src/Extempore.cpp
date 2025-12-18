@@ -49,7 +49,7 @@
 #else
 #undef min
 #undef max
-#include "llvm/Support/Host.h"
+#include "llvm/TargetParser/Host.h"
 #endif
 
 #ifdef __APPLE__
