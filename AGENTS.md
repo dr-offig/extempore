@@ -17,8 +17,8 @@ Key options: `-DASSETS=ON` (download multimedia assets), `-DBUILD_TESTS=ON`
 ## Test
 
 ```bash
-ctest --label-regex libs-core      # core library tests
-ctest --label-regex libs-external  # external library tests
+ctest --label-regex libs-core -j4      # core library tests
+ctest --label-regex libs-external -j4  # external library tests
 ```
 
 Tests are `.xtm` files in `tests/`. They use `--noaudio` mode automatically.
