@@ -106,7 +106,7 @@ PS1
     az vm deallocate -g "$RESOURCE_GROUP" -n "$VM_NAME"
     ;;
   destroy)
-    az group delete -n "$RESOURCE_GROUP" --yes --no-wait
+    az group delete -n "$RESOURCE_GROUP" --yes
     ;;
   *)
     echo "Unknown action: $ACTION" >&2
