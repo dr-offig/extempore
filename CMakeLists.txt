@@ -153,6 +153,9 @@ set(EXTEMPORE_LLVM_COMPONENTS
 llvm_map_components_to_libnames(LLVM_LIBRARIES ${EXTEMPORE_LLVM_COMPONENTS})
 message(STATUS "LLVM libraries: ${LLVM_LIBRARIES}")
 
+# Target for building just LLVM (useful for CI caching)
+add_custom_target(llvm-libs DEPENDS ${LLVM_LIBRARIES})
+
 set(LLVM_INCLUDE_DIRS
     ${llvm_SOURCE_DIR}/llvm/include
     ${llvm_BINARY_DIR}/include)

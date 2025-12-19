@@ -33,14 +33,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: build/_deps
-          key: ${{ matrix.os }}-llvm-${{ env.LLVM_VERSION }}-v3
-
-      - name: Restore AOT cache
-        id: cache-aot
-        uses: actions/cache/restore@v4
-        with:
-          path: libs/aot-cache
-          key: ${{ matrix.os }}-aot-${{ env.LLVM_VERSION }}-${{ hashFiles('libs/base/*.xtm', 'libs/core/*.xtm', 'libs/external/*.xtm', 'libs/external/**/*.xtm') }}
+          key: ${{ matrix.os }}-llvm-${{ env.LLVM_VERSION }}-v4
 
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
@@ -51,33 +44,19 @@ jobs:
       - name: Configure
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON
 
-      - name: Build
-        run: cmake --build build --config Release --parallel 2
-
-      - name: Check LLVM build completeness
-        id: llvm-built
-        if: always()
-        shell: bash
-        run: |
-          if ls build/_deps/llvm-build/**/LLVMCore.* 2>/dev/null | head -1 | grep -q .; then
-            echo "complete=true" >> $GITHUB_OUTPUT
-          else
-            echo "complete=false" >> $GITHUB_OUTPUT
-          fi
+      - name: Build LLVM
+        if: steps.cache-llvm.outputs.cache-hit != 'true'
+        run: cmake --build build --config Release --parallel 2 --target llvm-libs
 
       - name: Save LLVM cache
-        if: always() && steps.cache-llvm.outputs.cache-hit != 'true' && steps.llvm-built.outputs.complete == 'true'
+        if: steps.cache-llvm.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: build/_deps
-          key: ${{ matrix.os }}-llvm-${{ env.LLVM_VERSION }}-v3
+          key: ${{ matrix.os }}-llvm-${{ env.LLVM_VERSION }}-v4
 
-      - name: Save AOT cache
-        if: always() && steps.cache-aot.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: libs/aot-cache
-          key: ${{ matrix.os }}-aot-${{ env.LLVM_VERSION }}-${{ hashFiles('libs/base/*.xtm', 'libs/core/*.xtm', 'libs/external/*.xtm', 'libs/external/**/*.xtm') }}
+      - name: Build
+        run: cmake --build build --config Release --parallel 2
 
       - name: Test
         run: ctest --test-dir build --build-config Release --label-regex libs-core --output-on-failure
