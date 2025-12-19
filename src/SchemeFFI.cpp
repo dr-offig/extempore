@@ -204,8 +204,16 @@ static std::regex sTypeDefRegex("(?:^|\\n)\\s*(%[-a-zA-Z$._0-9]+)\\s*=\\s*type\\
 
 // Line-based regex patterns for removal operations. These match from the start
 // of a line (no leading \n) and are used with line-by-line processing.
-static std::regex sTypeDefLineRegex("^\\s*(%[-a-zA-Z$._0-9]+)\\s*=\\s*type\\s+(.+)$", std::regex::optimize);
-static std::regex sDeclareLineRegex("^\\s*declare[^\\n]+@([-a-zA-Z$._][-a-zA-Z$._0-9]*).*$", std::regex::optimize);
+// Note: \r? handles Windows CRLF line endings that may remain after std::getline.
+static std::regex sTypeDefLineRegex("^\\s*(%[-a-zA-Z$._0-9]+)\\s*=\\s*type\\s+(.+?)\\r?$", std::regex::optimize);
+static std::regex sDeclareLineRegex("^\\s*declare[^\\n]+@([-a-zA-Z$._][-a-zA-Z$._0-9]*).*\\r?$", std::regex::optimize);
+
+// Strip trailing carriage return from a line (handles Windows CRLF after getline).
+static inline void stripCR(std::string& line) {
+    if (!line.empty() && line.back() == '\r') {
+        line.pop_back();
+    }
+}
 void initSchemeFFI(scheme* sc)
 {
     static struct {
@@ -372,6 +380,7 @@ static std::string stripBuiltinTypeDefs(const std::string& ir) {
     std::string line;
     bool first = true;
     while (std::getline(stream, line)) {
+        stripCR(line);
         std::smatch match;
         bool keepLine = true;
         if (std::regex_match(line, match, sTypeDefLineRegex)) {
@@ -389,7 +398,7 @@ static std::string stripBuiltinTypeDefs(const std::string& ir) {
         }
     }
     // Preserve trailing newline if original had one.
-    if (!ir.empty() && ir.back() == '\n') {
+    if (!ir.empty() && (ir.back() == '\n' || ir.back() == '\r')) {
         result += '\n';
     }
     return result;
@@ -440,6 +449,7 @@ static llvm::Module* jitCompile(const std::string& String)
             std::istringstream stream(sInlineString);
             std::string line;
             while (std::getline(stream, line)) {
+                stripCR(line);
                 std::smatch match;
                 if (std::regex_match(line, match, sTypeDefLineRegex)) {
                     sBuiltinTypes.insert(match[1].str());
@@ -545,6 +555,7 @@ static llvm::Module* jitCompile(const std::string& String)
                     std::istringstream stream(sInlineString);
                     std::string line;
                     while (std::getline(stream, line)) {
+                        stripCR(line);
                         std::smatch match;
                         if (std::regex_match(line, match, sTypeDefLineRegex)) {
                             typeDefs += line + "\n";
@@ -591,6 +602,7 @@ static llvm::Module* jitCompile(const std::string& String)
                 std::string line;
                 bool first = true;
                 while (std::getline(stream, line)) {
+                    stripCR(line);
                     std::smatch match;
                     bool keepLine = true;
                     if (std::regex_match(line, match, sDeclareLineRegex)) {
@@ -608,7 +620,7 @@ static llvm::Module* jitCompile(const std::string& String)
                     }
                 }
                 // Preserve trailing newline if original had one.
-                if (!strippedAsmcode.empty() && strippedAsmcode.back() == '\n') {
+                if (!strippedAsmcode.empty() && (strippedAsmcode.back() == '\n' || strippedAsmcode.back() == '\r')) {
                     result += '\n';
                 }
                 strippedAsmcode = result;
