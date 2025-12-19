@@ -10,7 +10,7 @@ set -euo pipefail
 
 SUBSCRIPTION_ID="${SUBSCRIPTION_ID:-}"
 RESOURCE_GROUP="${RESOURCE_GROUP:-extempore-win}"
-LOCATION="${LOCATION:-}"
+LOCATION="${LOCATION:-australiaeast}"
 VM_NAME="${VM_NAME:-extempore-winvm}"
 VM_SIZE="${VM_SIZE:-Standard_D4s_v5}"
 ADMIN_USER="${ADMIN_USER:-azureuser}"
@@ -20,11 +20,6 @@ ACTION="${1:-setup}"
 
 if [ -z "$SUBSCRIPTION_ID" ]; then
   echo "SUBSCRIPTION_ID is required. Export it before running." >&2
-  exit 1
-fi
-
-if [ "$ACTION" = "setup" ] && [ -z "$LOCATION" ]; then
-  echo "LOCATION is required (for example: australiaeast)." >&2
   exit 1
 fi
 
