@@ -9,9 +9,41 @@ if (-not (Get-Command choco -ErrorAction SilentlyContinue)) {
   iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
 }
 
-# Core build tooling + Node LTS.
-choco install -y git cmake ninja python 7zip nodejs-lts
-choco install -y visualstudio2022buildtools visualstudio2022-workload-vctools
+# Prefer the canonical choco path in Run Command where PATH is unreliable.
+$ChocoExe = 'C:\ProgramData\chocolatey\bin\choco.exe'
+if (-not (Test-Path $ChocoExe)) {
+  $ChocoExe = (Get-Command choco -ErrorAction SilentlyContinue).Source
+}
+
+function Test-Tool($Command, $Paths) {
+  if (Get-Command $Command -ErrorAction SilentlyContinue) { return $true }
+  foreach ($path in $Paths) {
+    if (Test-Path $path) { return $true }
+  }
+  return $false
+}
+
+# Core build tooling + Node LTS (install only what's missing).
+if ($ChocoExe) {
+  $packages = @()
+  if (-not (Test-Tool 'git' @('C:\Program Files\Git\cmd\git.exe'))) { $packages += 'git' }
+  if (-not (Test-Tool 'cmake' @('C:\Program Files\CMake\bin\cmake.exe'))) { $packages += 'cmake' }
+  if (-not (Test-Tool 'ninja' @('C:\Program Files\Ninja\ninja.exe'))) { $packages += 'ninja' }
+  if (-not (Test-Tool 'python' @('C:\Python311\python.exe','C:\Python310\python.exe'))) { $packages += 'python' }
+  if (-not (Test-Tool '7z' @('C:\Program Files\7-Zip\7z.exe'))) { $packages += '7zip' }
+  if (-not (Test-Tool 'node' @('C:\Program Files\nodejs\node.exe'))) { $packages += 'nodejs-lts' }
+
+  if ($packages.Count -gt 0) {
+    & $ChocoExe install -y @packages
+  }
+
+  $vcvars = 'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat'
+  if (-not (Test-Path $vcvars)) {
+    & $ChocoExe install -y visualstudio2022buildtools visualstudio2022-workload-vctools
+  }
+} else {
+  throw "Chocolatey not found; install failed."
+}
 
 # Refresh PATH for this session.
 if (Test-Path "$env:ChocolateyInstall\helpers\chocolateyProfile.psm1") {
@@ -20,7 +52,12 @@ if (Test-Path "$env:ChocolateyInstall\helpers\chocolateyProfile.psm1") {
 }
 
 # Install Claude Code.
-npm install -g @anthropic-ai/claude-code
+$npm = 'C:\Program Files\nodejs\npm.cmd'
+if (Test-Path $npm) {
+  & $npm install -g @anthropic-ai/claude-code
+} else {
+  npm install -g @anthropic-ai/claude-code
+}
 
 # Enable OpenSSH server and firewall rule.
 Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
@@ -38,7 +75,12 @@ if (-not (Test-Path $RepoRoot)) {
 }
 Set-Location $RepoRoot
 if (-not (Test-Path (Join-Path $RepoRoot 'extempore'))) {
-  git clone $RepoUrl
+  $git = 'C:\Program Files\Git\cmd\git.exe'
+  if (Test-Path $git) {
+    & $git clone $RepoUrl
+  } else {
+    git clone $RepoUrl
+  }
 }
 
 Write-Host 'Bootstrap complete. Next steps:'

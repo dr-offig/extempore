@@ -78,10 +78,13 @@ if (-not (Get-NetFirewallRule -Name sshd -ErrorAction SilentlyContinue)) { New-N
 $pubkey = @'
 __PUBKEY_CONTENT__
 '@
+# For admin users, OpenSSH on Windows uses administrators_authorized_keys
+New-Item -ItemType Directory -Force -Path C:\ProgramData\ssh | Out-Null
+Set-Content -Path C:\ProgramData\ssh\administrators_authorized_keys -Value $pubkey
+icacls C:\ProgramData\ssh\administrators_authorized_keys /inheritance:r /grant "SYSTEM:(F)" /grant "Administrators:(F)" | Out-Null
+# Also set up user .ssh directory for the SSH private key (for git access)
 New-Item -ItemType Directory -Force -Path C:\Users\__ADMIN_USER__\.ssh | Out-Null
-Set-Content -Path C:\Users\__ADMIN_USER__\.ssh\authorized_keys -Value $pubkey
-icacls C:\Users\__ADMIN_USER__\.ssh /inheritance:r /grant __ADMIN_USER__:(F) | Out-Null
-icacls C:\Users\__ADMIN_USER__\.ssh\authorized_keys /inheritance:r /grant __ADMIN_USER__:(F) | Out-Null
+# Install Git
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
   $gitInstaller = "$env:TEMP\Git-Installer.exe"
   [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -89,10 +92,30 @@ if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
   $gitUrl = ($release.assets | Where-Object { $_.name -like '*64-bit.exe' } | Select-Object -First 1 -ExpandProperty browser_download_url)
   curl.exe -L -o $gitInstaller $gitUrl
   Start-Process -FilePath $gitInstaller -ArgumentList "/VERYSILENT","/NORESTART","/NOCANCEL","/SP-" -Wait
-  [Environment]::SetEnvironmentVariable("Path", ([Environment]::GetEnvironmentVariable("Path","User") + ";C:\Program Files\Git\cmd"), "User")
-  $env:Path = [Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [Environment]::GetEnvironmentVariable("Path","User")
+  $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+  if ($machinePath -notlike "*Git\cmd*") {
+    [Environment]::SetEnvironmentVariable("Path", "$machinePath;C:\Program Files\Git\cmd", "Machine")
+  }
 }
+$env:Path = [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [Environment]::GetEnvironmentVariable("Path", "User")
 if (Get-Command git -ErrorAction SilentlyContinue) { git config --global credential.helper manager-core }
+
+# Install Node.js
+if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
+  $nodeInstaller = "$env:TEMP\node-installer.msi"
+  curl.exe -L -o $nodeInstaller "https://nodejs.org/dist/v22.12.0/node-v22.12.0-x64.msi"
+  Start-Process msiexec.exe -ArgumentList "/i", $nodeInstaller, "/quiet", "/norestart" -Wait
+  $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+  if ($machinePath -notlike "*nodejs*") {
+    [Environment]::SetEnvironmentVariable("Path", "$machinePath;C:\Program Files\nodejs", "Machine")
+  }
+}
+$env:Path = [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [Environment]::GetEnvironmentVariable("Path", "User")
+
+# Install Claude Code
+if (Get-Command npm -ErrorAction SilentlyContinue) {
+  npm install -g @anthropic-ai/claude-code
+}
 PS1
 )
 
