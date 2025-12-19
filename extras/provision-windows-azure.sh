@@ -82,6 +82,17 @@ New-Item -ItemType Directory -Force -Path C:\Users\__ADMIN_USER__\.ssh | Out-Nul
 Set-Content -Path C:\Users\__ADMIN_USER__\.ssh\authorized_keys -Value $pubkey
 icacls C:\Users\__ADMIN_USER__\.ssh /inheritance:r /grant __ADMIN_USER__:(F) | Out-Null
 icacls C:\Users\__ADMIN_USER__\.ssh\authorized_keys /inheritance:r /grant __ADMIN_USER__:(F) | Out-Null
+if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+  $gitInstaller = "$env:TEMP\Git-Installer.exe"
+  [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+  $release = Invoke-RestMethod -Headers @{ 'User-Agent'='curl' } https://api.github.com/repos/git-for-windows/git/releases/latest
+  $gitUrl = ($release.assets | Where-Object { $_.name -like '*64-bit.exe' } | Select-Object -First 1 -ExpandProperty browser_download_url)
+  curl.exe -L -o $gitInstaller $gitUrl
+  Start-Process -FilePath $gitInstaller -ArgumentList "/VERYSILENT","/NORESTART","/NOCANCEL","/SP-" -Wait
+  [Environment]::SetEnvironmentVariable("Path", ([Environment]::GetEnvironmentVariable("Path","User") + ";C:\Program Files\Git\cmd"), "User")
+  $env:Path = [Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [Environment]::GetEnvironmentVariable("Path","User")
+}
+if (Get-Command git -ErrorAction SilentlyContinue) { git config --global credential.helper manager-core }
 PS1
 )
 
