@@ -3,6 +3,8 @@ set -euo pipefail
 
 # Provision a Windows Server 2022 VM on Azure and enable SSH with your public key.
 # Requires: az CLI authenticated with sufficient permissions.
+# Usage:
+#   SUBSCRIPTION_ID="..." LOCATION="australiaeast" ./provision-windows-azure.sh
 
 SUBSCRIPTION_ID="${SUBSCRIPTION_ID:-}"
 RESOURCE_GROUP="${RESOURCE_GROUP:-extempore-win}"
