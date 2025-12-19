@@ -88,7 +88,20 @@ cmake --build . --target xtmdoc     # generate docs
 ./extempore --noaudio               # run REPL without audio
 ```
 
-## Running extempore safely
+## Evaluating extempore code
+
+For users, extempore is designed to be run interactively (start it, then connect
+an editor to port 7099 and send s-expressions for evaluation).
+
+There is also a "batch mode" useful for debugging/testing, e.g.
+
+```bash
+./extempore --noaudio --batch "(begin (println 'hello) (quit 0))"
+```
+
+If the final `quit` isn't present, then extempore won't exit. And if the eval'ed
+code throws an error, extempore won't exit either (it will print the scheme
+stacktrace and then await further instructions).
 
 Extempore may send SIGKILL on fatal errors (e.g. LLVM IR compilation failures),
 which can terminate the parent process. To isolate crashes when debugging:
