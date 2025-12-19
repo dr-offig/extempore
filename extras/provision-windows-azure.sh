@@ -7,6 +7,8 @@ set -euo pipefail
 #   SUBSCRIPTION_ID="..." LOCATION="australiaeast" ./provision-windows-azure.sh setup
 #   SUBSCRIPTION_ID="..." ./provision-windows-azure.sh restart
 #   SUBSCRIPTION_ID="..." ./provision-windows-azure.sh stop
+#   SUBSCRIPTION_ID="..." ./provision-windows-azure.sh destroy
+# LOCATION defaults to australiaeast.
 
 SUBSCRIPTION_ID="${SUBSCRIPTION_ID:-}"
 RESOURCE_GROUP="${RESOURCE_GROUP:-extempore-win}"
@@ -103,9 +105,12 @@ PS1
   stop)
     az vm deallocate -g "$RESOURCE_GROUP" -n "$VM_NAME"
     ;;
+  destroy)
+    az group delete -n "$RESOURCE_GROUP" --yes --no-wait
+    ;;
   *)
     echo "Unknown action: $ACTION" >&2
-    echo "Valid actions: setup, restart, stop" >&2
+    echo "Valid actions: setup, restart, stop, destroy" >&2
     exit 1
     ;;
 esac
