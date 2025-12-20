@@ -18,7 +18,7 @@ endfunction()
 macro(extempore_add_test testfile label)
     extempore_get_next_port(_port)
     add_test(NAME ${testfile}
-        COMMAND extempore --noaudio --term nocolor --port=${_port}
+        COMMAND extempore --term nocolor --port=${_port}
             --batch "(xtmtest-run-tests \"${testfile}\" #t #t)")
     set_tests_properties(${testfile} PROPERTIES
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
@@ -38,7 +38,7 @@ endmacro()
 macro(extempore_add_example_as_test examplefile timeout label)
     extempore_get_next_port(_port)
     add_test(NAME ${examplefile}
-        COMMAND extempore --noaudio --term nocolor --port=${_port}
+        COMMAND extempore --term nocolor --port=${_port}
             --batch "(sys:load-then-quit \"${examplefile}\" ${timeout})")
     set_tests_properties(${examplefile} PROPERTIES
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}

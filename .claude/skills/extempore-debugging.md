@@ -52,8 +52,8 @@ impc:compiler:flush-jit-compilation-queue
 
 - `--nobase`: Skip loading base library (useful for debugging JIT in isolation)
 - `--noaudio`: Disable audio (required for headless/CI testing)
-- `--batch "expr"`: Batch mode (no server, single process); exits only if the
-  expression calls `(quit ...)`
+- `--batch "expr"`: Batch mode (no server, single process, no audio); exits only
+  if the expression calls `(quit ...)`. Implies `--noaudio`.
 
 ## Symbol tracking
 
@@ -105,10 +105,10 @@ Check that:
 
 ```bash
 # Skip base library to test JIT directly
-./extempore --noaudio --nobase --batch "(begin (llvm:jit-compile-ir-string \"define i64 @test() { ret i64 42 }\") (println (llvm:get-function \"test\")) (quit 0))"
+./extempore --nobase --batch "(begin (llvm:jit-compile-ir-string \"define i64 @test() { ret i64 42 }\") (println (llvm:get-function \"test\")) (quit 0))"
 
 # Test AOT cache loading
-./extempore --noaudio --nobase --batch "(begin (llvm:compile-ir (sys:slurp-file \"libs/aot-cache/xtmbase.ll\")) (quit 0))"
+./extempore --nobase --batch "(begin (llvm:compile-ir (sys:slurp-file \"libs/aot-cache/xtmbase.ll\")) (quit 0))"
 ```
 
 ## C++ debug output

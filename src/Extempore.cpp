@@ -225,6 +225,7 @@ EXPORT int extempore_init(int argc, char** argv)
             case OPT_BATCH:
                 initexpr = std::string(args.OptionArg());
                 extemp::UNIV::BATCH_MODE = true;
+                extemp::UNIV::AUDIO_NONE = true;
                 break;
             case OPT_INITFILE:
                 {
@@ -314,7 +315,7 @@ EXPORT int extempore_init(int argc, char** argv)
                 std::cout << "Extempore's command line options: " << std::endl;
                 std::cout << "            --help: prints this menu" << std::endl;
                 std::cout << "             --run: path to a scheme file to load at startup" << std::endl;
-                std::cout << "           --batch: run in batch mode (no server, single process) with given expression" << std::endl;
+                std::cout << "           --batch: run in batch mode (no server, single process, no audio) with given expression" << std::endl;
                 std::cout << "            --port: port for primary process [7099]" << std::endl;
                 std::cout << "            --term: either ansi, cmd (windows), basic (for simpler ansi terms), or nocolor" << std::endl;
                 std::cout << "        --sharedir: location of the Extempore share dir (which contains runtime/, libs/, examples/, etc.)" << std::endl;

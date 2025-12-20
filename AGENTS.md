@@ -43,7 +43,8 @@ ctest --label-regex libs-core -j4      # core library tests
 ctest --label-regex libs-external -j4  # external library tests
 ```
 
-Tests are `.xtm` files in `tests/`. They use `--noaudio` mode automatically.
+Tests are `.xtm` files in `tests/`. They run in `--batch` mode (which implies
+`--noaudio`), except for `system.xtm` which uses `--eval` for IPC testing.
 
 In addition, building the `aot_external_audio` target (the default) is a pretty
 good sign that things are working.
@@ -96,8 +97,10 @@ an editor to port 7099 and send s-expressions for evaluation).
 There is also a "batch mode" useful for debugging/testing, e.g.
 
 ```bash
-./extempore --noaudio --batch "(begin (println 'hello) (quit 0))"
+./extempore --batch "(begin (println 'hello) (quit 0))"
 ```
+
+Note: `--batch` implies `--noaudio`, so there's no need to specify both.
 
 If the final `quit` isn't present, then extempore won't exit. And if the eval'ed
 code throws an error, extempore won't exit either (it will print the scheme
