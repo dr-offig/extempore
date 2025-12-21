@@ -104,18 +104,6 @@ Note: `--batch` implies `--noaudio`, so there's no need to specify both.
 
 If the final `quit` isn't present, then extempore won't exit. And if the eval'ed
 code throws an error, extempore won't exit either (it will print the scheme
-stacktrace and then await further instructions).
-
-Extempore may send SIGKILL on fatal errors (e.g. LLVM IR compilation failures),
-which can terminate the parent process. To isolate crashes when debugging:
-
-```bash
-# run with timeout and output capture
-(./extempore --noaudio --eval "(sys:load \"libs/core/xtmbase.xtm\")" 2>&1 | head -200) &
-pid=$!; sleep 30; kill $pid 2>/dev/null; wait $pid 2>/dev/null
-
-# or use timeout command (Linux)
-timeout 60 ./extempore --noaudio --eval "..."
-```
-
-This prevents extempore crashes from killing the agent session.
+stacktrace and then await further instructions). For this reason, for scripted
+debugging it's often helpful to use `timeout` (combined with `--batch`) with a
+short value (e.g. 10s) to ensure that whatever happens the script will exit.
