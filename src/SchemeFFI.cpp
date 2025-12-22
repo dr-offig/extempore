@@ -73,6 +73,7 @@
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Linker/Linker.h"
 
 #include "SchemeFFI.h"
 #include "AudioDevice.h"
@@ -104,8 +105,6 @@ CMRC_DECLARE(xtm);
 // also extremely SLOW !
 
 #define LLVM_EE_LOCK
-
-#include <regex>
 
 ////////////////////////////////
 
@@ -173,6 +172,22 @@ static std::string formatLLVMType(llvm::Type* Type)
     return ss.str();
 }
 
+static const char* linkageToString(llvm::GlobalValue::LinkageTypes linkage)
+{
+    using LT = llvm::GlobalValue::LinkageTypes;
+    switch (linkage) {
+        case LT::LinkOnceAnyLinkage: return "linkonce";
+        case LT::LinkOnceODRLinkage: return "linkonce_odr";
+        case LT::WeakAnyLinkage: return "weak";
+        case LT::WeakODRLinkage: return "weak_odr";
+        case LT::AvailableExternallyLinkage: return "available_externally";
+        case LT::AppendingLinkage: return "appending";
+        case LT::CommonLinkage: return "common";
+        case LT::ExternalWeakLinkage: return "extern_weak";
+        default: return "";
+    }
+}
+
 #include "ffi/utility.inc"
 #include "ffi/ipc.inc"
 #include "ffi/assoc.inc"
@@ -185,35 +200,16 @@ static std::string formatLLVMType(llvm::Type* Type)
 #include "ffi/llvm.inc"
 #include "ffi/clock.inc"
 
-// Regex to strip numeric suffixes from type names (e.g., %String.323 -> %String)
-static std::regex sDefineSymRegex("define[^\\n]+@([-a-zA-Z$._][-a-zA-Z$._0-9]*)", std::regex::optimize | std::regex::ECMAScript);
-static std::regex sDeclareSymRegex("declare[^\\n]+@([-a-zA-Z$._][-a-zA-Z$._0-9]*)", std::regex::optimize | std::regex::ECMAScript);
+// Track external library function names for calling convention (CallingConv::C).
+// These are functions declared via bind-lib.
+static std::unordered_set<std::string> sExternalLibFunctionNames;
+static std::mutex sExternalLibFunctionNamesMutex;
 
-// Regex patterns for extraction. These use (?:^|\n) to match line starts since
-// MSVC doesn't support std::regex::multiline. The leading \n is consumed but
-// that's fine for extraction - we only use the capture groups.
-static std::regex sExternalGlobalRegex("(?:^|\\n)@([-a-zA-Z$._][-a-zA-Z$._0-9]*)\\s*=\\s*external\\s+global\\s+(\\S+)",
-                                        std::regex::optimize);
-
-static std::regex sExternalDeclareRegex("(?:^|\\n)\\s*declare\\s+cc\\s+0\\s+([^@]+)\\s+@([^(]+)\\(([^)]*)\\)(?:\\s+nounwind)?\\s*(?:$|\\n)",
-                                        std::regex::optimize);
-
-static std::regex sGlobalSymRegex("[ \t]@([-a-zA-Z$._][-a-zA-Z$._0-9]*)", std::regex::optimize);
-static std::regex sGlobalVarDefRegex("(?:^|\\n)@([-a-zA-Z$._][-a-zA-Z$._0-9]*)\\s*=", std::regex::optimize);
-static std::regex sTypeDefRegex("(?:^|\\n)\\s*(%[-a-zA-Z$._0-9]+)\\s*=\\s*type\\s+([^\\n]+)", std::regex::optimize);
-
-// Line-based regex patterns for removal operations. These match from the start
-// of a line (no leading \n) and are used with line-by-line processing.
-// Note: \r? handles Windows CRLF line endings that may remain after std::getline.
-static std::regex sTypeDefLineRegex("^\\s*(%[-a-zA-Z$._0-9]+)\\s*=\\s*type\\s+(.+?)\\r?$", std::regex::optimize);
-static std::regex sDeclareLineRegex("^\\s*declare[^\\n]+@([-a-zA-Z$._][-a-zA-Z$._0-9]*).*\\r?$", std::regex::optimize);
-
-// Strip trailing carriage return from a line (handles Windows CRLF after getline).
-static inline void stripCR(std::string& line) {
-    if (!line.empty() && line.back() == '\r') {
-        line.pop_back();
-    }
-}
+// Cached template module (parsed bitcode.ll) and its binary form for fast cloning.
+static std::string sTemplateBitcode;
+// Type definitions extracted from bitcode.ll - prepended to every user IR.
+static std::string sTypeDefinitions;
+static std::mutex sTemplateMutex;
 void initSchemeFFI(scheme* sc)
 {
     static struct {
@@ -251,472 +247,456 @@ void initSchemeFFI(scheme* sc)
 
 static long long llvm_emitcounter = 0;
 
-// Track user-defined type definitions for LLVM 21's opaque pointers.
-// Each new type definition needs to be included in subsequent compilations.
-static std::unordered_map<std::string, std::string> sUserTypeDefs;
-static std::mutex sUserTypeDefsMutex;
-
-// Track external global variables for declaration in subsequent compilations.
-// Maps global name to its type string (e.g., "SAMPLE_RATE" -> "i32").
-static std::unordered_map<std::string, std::string> sExternalGlobals;
-static std::mutex sExternalGlobalsMutex;
-
-// Track external library function declarations (from bind-lib) for inclusion in subsequent compilations.
-// Maps function name to its full declaration string (e.g., "sf_close" -> "declare i32 @sf_close(i8*)").
-static std::unordered_map<std::string, std::string> sExternalLibFunctions;
-static std::mutex sExternalLibFunctionsMutex;
-static std::unordered_map<std::string, std::regex> sFuncDeclRegexCache;
-
-// Track built-in types from the base runtime (bitcode.ll) to avoid duplicate definitions.
-static std::unordered_set<std::string> sBuiltinTypes;
-
-// Get user type definitions, filtered to exclude those already in the IR.
-static std::string getUserTypeDefsStringFiltered(const std::string& existingIR) {
-    std::lock_guard<std::mutex> lock(sUserTypeDefsMutex);
-    std::string result;
-    for (const auto& kv : sUserTypeDefs) {
-        std::string typeDef = kv.first + " = type " + kv.second;
-        // Check if this type is already defined.
-        if (existingIR.find(typeDef) == std::string::npos) {
-            result += typeDef + "\n";
-        }
-    }
-    return result;
+// Check if a symbol is an external library function (uses C calling convention).
+static bool isExternalLibFunction(const std::string& name) {
+    std::lock_guard<std::mutex> lock(sExternalLibFunctionNamesMutex);
+    return sExternalLibFunctionNames.find(name) != sExternalLibFunctionNames.end();
 }
 
-// Get external globals, filtered to exclude those already in the IR.
-static std::string getExternalGlobalsStringFiltered(const std::string& existingIR) {
-    std::lock_guard<std::mutex> lock(sExternalGlobalsMutex);
-    std::string result;
-    for (const auto& kv : sExternalGlobals) {
-        std::string globalDecl = "@" + kv.first + " = external global " + kv.second;
-        // Check if this global is already declared.
-        if (existingIR.find(globalDecl) == std::string::npos) {
-            result += globalDecl + "\n";
-        }
-    }
-    return result;
+// Register a symbol as an external library function.
+static void registerExternalLibFunction(const std::string& name) {
+    std::lock_guard<std::mutex> lock(sExternalLibFunctionNamesMutex);
+    sExternalLibFunctionNames.insert(name);
 }
 
-static void extractAndStoreExternalGlobals(const std::string& ir) {
-    std::lock_guard<std::mutex> lock(sExternalGlobalsMutex);
-    std::sregex_iterator it(ir.begin(), ir.end(), sExternalGlobalRegex);
-    std::sregex_iterator end;
-    for (; it != end; ++it) {
-        std::string globalName = (*it)[1].str();
-        std::string globalType = (*it)[2].str();
-        sExternalGlobals[globalName] = globalType;
-    }
-}
-
-static void extractAndStoreExternalLibFunctions(const std::string& ir) {
-    std::lock_guard<std::mutex> lock(sExternalLibFunctionsMutex);
-    std::sregex_iterator it(ir.begin(), ir.end(), sExternalDeclareRegex);
-    std::sregex_iterator end;
-    for (; it != end; ++it) {
-        std::string returnType = (*it)[1].str();
-        std::string funcName = (*it)[2].str();
-        std::string params = (*it)[3].str();
-
-        // Reconstruct the full declaration (simplified form without calling convention).
-        std::string fullDecl = "declare " + returnType + " @" + funcName + "(" + params + ") nounwind\n";
-        sExternalLibFunctions[funcName] = fullDecl;
-    }
-}
-
-// Get external lib functions, filtered to exclude those already declared in the IR.
-static std::string getExternalLibFunctionsStringFiltered(const std::string& existingIR) {
-    std::lock_guard<std::mutex> lock(sExternalLibFunctionsMutex);
-    std::string result;
-    constexpr std::string_view kRegexSpecials = R"(.+*?^$[](){}|\\)";
-    // Check if each function is already declared.
-    for (const auto& kv : sExternalLibFunctions) {
-        const std::string& funcName = kv.first;
-        // Escape special regex characters in function name.
-        std::string escapedName;
-        for (char c : funcName) {
-            if (kRegexSpecials.find(c) != std::string_view::npos) {
-                escapedName += '\\';
-            }
-            escapedName += c;
-        }
-        // Check if the function is already declared.
-        auto cacheIt = sFuncDeclRegexCache.find(funcName);
-        if (cacheIt == sFuncDeclRegexCache.end()) {
-            cacheIt = sFuncDeclRegexCache.emplace(
-                funcName,
-                std::regex("declare\\s+(?:cc\\s+\\d+\\s+)?[^@]*@" + escapedName + "\\s*\\(", std::regex::optimize)
-            ).first;
-        }
-        if (!std::regex_search(existingIR, cacheIt->second)) {
-            result += kv.second;
-        }
-    }
-    return result;
-}
-
-static void extractAndStoreTypeDefs(const std::string& ir) {
-    std::lock_guard<std::mutex> lock(sUserTypeDefsMutex);
-    std::sregex_iterator it(ir.begin(), ir.end(), sTypeDefRegex);
-    std::sregex_iterator end;
-    for (; it != end; ++it) {
-        std::string typeName = (*it)[1].str();
-        std::string typeDef = (*it)[2].str();
-        // Store types not present in the base runtime.
-        if (sBuiltinTypes.find(typeName) == sBuiltinTypes.end()) {
-            sUserTypeDefs[typeName] = typeDef;
-        }
-    }
-}
-
-// Strip built-in type definitions from incoming IR to avoid duplicates when prepending sInlineString.
-// Uses line-by-line processing to avoid multiline regex issues on Windows.
-static std::string stripBuiltinTypeDefs(const std::string& ir) {
-    if (sBuiltinTypes.empty()) {
-        return ir;
-    }
-    std::string result;
-    std::istringstream stream(ir);
+// Extract external global declarations from IR string and add to sTypeDefinitions.
+// This handles globals that are declared but not defined (e.g., @SAMPLE_RATE = external global i32).
+// These get dropped by LLVM if they're not used in the same module.
+// NOTE: lockless version - caller must hold sTemplateMutex.
+static void extractExternalGlobalsLockless(const std::string& irString) {
+    std::istringstream stream(irString);
     std::string line;
-    bool first = true;
     while (std::getline(stream, line)) {
-        stripCR(line);
-        std::smatch match;
-        bool keepLine = true;
-        if (std::regex_match(line, match, sTypeDefLineRegex)) {
-            std::string typeName = match[1].str();
-            if (sBuiltinTypes.find(typeName) != sBuiltinTypes.end()) {
-                keepLine = false;
+        // Strip trailing CR
+        if (!line.empty() && line.back() == '\r') {
+            line.pop_back();
+        }
+        // Look for pattern: @name = external global type
+        if (line.size() > 1 && line[0] == '@') {
+            size_t extPos = line.find(" = external global ");
+            if (extPos != std::string::npos) {
+                // Check if this declaration is already in sTypeDefinitions
+                std::string globalName = line.substr(0, extPos);
+                if (sTypeDefinitions.find(globalName + " = external") == std::string::npos) {
+                    sTypeDefinitions += line + "\n";
+                }
             }
         }
-        if (keepLine) {
-            if (!first) {
-                result += '\n';
-            }
-            result += line;
-            first = false;
-        }
     }
-    // Preserve trailing newline if original had one.
-    if (!ir.empty() && (ir.back() == '\n' || ir.back() == '\r')) {
-        result += '\n';
-    }
-    return result;
 }
 
-static llvm::Module* jitCompile(const std::string& String)
+// Extract type definitions from a line (handles CRLF safely).
+// Returns the type definition line if it matches "%name = type ...", empty otherwise.
+static std::string extractTypeDef(const std::string& line) {
+    size_t start = 0;
+    size_t end = line.size();
+    // Skip leading whitespace
+    while (start < end && (line[start] == ' ' || line[start] == '\t')) {
+        start++;
+    }
+    // Skip trailing whitespace and CR
+    while (end > start && (line[end-1] == ' ' || line[end-1] == '\t' ||
+                           line[end-1] == '\r' || line[end-1] == '\n')) {
+        end--;
+    }
+    if (start >= end) return "";
+
+    std::string trimmed = line.substr(start, end - start);
+    // Check for type definition pattern: %name = type ...
+    if (trimmed.size() > 1 && trimmed[0] == '%') {
+        size_t eqPos = trimmed.find(" = type ");
+        if (eqPos != std::string::npos) {
+            return trimmed + "\n";
+        }
+    }
+    return "";
+}
+
+// Initialize template module from bitcode.ll (called once, thread-safe).
+static bool initializeTemplateModule(llvm::LLVMContext& ctx) {
+    std::lock_guard<std::mutex> lock(sTemplateMutex);
+    if (!sTemplateBitcode.empty()) {
+        return true;
+    }
+
+    std::string inlineString;
+#ifdef DYLIB
+    auto fs = cmrc::xtm::get_filesystem();
+    auto data = fs.open("runtime/bitcode.ll");
+    inlineString = std::string(data.begin(), data.end());
+#else
+    std::ifstream inStream(UNIV::SHARE_DIR + "/runtime/bitcode.ll");
+    std::stringstream ss;
+    ss << inStream.rdbuf();
+    inlineString = ss.str();
+#endif
+
+    // Extract type definitions and declarations (line by line to handle CRLF safely).
+    // Declarations are needed so user IR can reference runtime symbols during parsing.
+    std::istringstream lineStream(inlineString);
+    std::string line;
+    while (std::getline(lineStream, line)) {
+        // Strip trailing CR if present (Windows CRLF).
+        if (!line.empty() && line.back() == '\r') {
+            line.pop_back();
+        }
+        
+        std::string typeDef = extractTypeDef(line);
+        if (!typeDef.empty()) {
+            sTypeDefinitions += typeDef;
+            continue;
+        }
+
+    }
+
+    // Parse template module to create the binary bitcode for fast cloning.
+    llvm::SMDiagnostic diag;
+    auto templateModule = llvm::parseAssemblyString(inlineString, diag, ctx);
+    if (!templateModule) {
+        std::cerr << "Failed to parse bitcode.ll: " << diag.getMessage().str() << std::endl;
+        return false;
+    }
+
+    llvm::raw_string_ostream bitstream(sTemplateBitcode);
+    llvm::WriteBitcodeToFile(*templateModule, bitstream);
+
+    return true;
+}
+
+// Clone the template module for a new compilation.
+static std::unique_ptr<llvm::Module> cloneTemplateModule(llvm::LLVMContext& ctx) {
+    std::lock_guard<std::mutex> lock(sTemplateMutex);
+    if (sTemplateBitcode.empty()) {
+        return nullptr;
+    }
+
+    auto modOrErr = llvm::parseBitcodeFile(
+        llvm::MemoryBufferRef(sTemplateBitcode, "<template>"), ctx);
+    if (modOrErr) {
+        return std::move(modOrErr.get());
+    }
+    llvm::consumeError(modOrErr.takeError());
+    return nullptr;
+}
+
+static llvm::Module* jitCompile(const std::string& irString)
 {
-    // Create some module to put our function into it.
     using namespace llvm;
 
     char modname[256];
     snprintf(modname, sizeof(modname), "xtmmodule_%lld", ++llvm_emitcounter);
 
-    std::string asmcode(String);
-    SMDiagnostic pa;
-
-    static std::string sInlineString; // This is a hack for now, but it *WORKS*
-    static std::string sInlineBitcode;
-    static std::unordered_set<std::string> sInlineSyms;
-
-#ifdef DYLIB
-    auto fs = cmrc::xtm::get_filesystem();
-#endif
-
-    if (sInlineString.empty()) {
-        {
-#ifdef DYLIB
-            auto data = fs.open("runtime/bitcode.ll");
-            sInlineString = std::string(data.begin(), data.end());
-#else
-            std::ifstream inStream(UNIV::SHARE_DIR + "/runtime/bitcode.ll");
-            std::stringstream inString;
-            inString << inStream.rdbuf();
-            sInlineString = inString.str();
-#endif
-        }
-        // Collect symbol references.
-        std::copy(std::sregex_token_iterator(sInlineString.begin(), sInlineString.end(), sGlobalSymRegex, 1),
-                std::sregex_token_iterator(), std::inserter(sInlineSyms, sInlineSyms.begin()));
-
-        // Collect global variable definitions.
-        std::copy(std::sregex_token_iterator(sInlineString.begin(), sInlineString.end(), sGlobalVarDefRegex, 1),
-                std::sregex_token_iterator(), std::inserter(sInlineSyms, sInlineSyms.begin()));
-
-        // Extract built-in type names from base runtime to avoid duplicate definitions.
-        // Uses line-by-line processing to avoid multiline regex issues on Windows.
-        if (sBuiltinTypes.empty()) {
-            std::istringstream stream(sInlineString);
-            std::string line;
-            while (std::getline(stream, line)) {
-                stripCR(line);
-                std::smatch match;
-                if (std::regex_match(line, match, sTypeDefLineRegex)) {
-                    sBuiltinTypes.insert(match[1].str());
-                }
-            }
-        }
-    }
-
-    // Detect if this is a bind-lib declaration.
-    // These should not have external lib functions prepended, to avoid duplicates.
-    bool isBindLibDeclaration = (asmcode.find("declare") == 0 && asmcode.size() < 500);
-
-    // Build declarations string.
-    std::vector<std::string> symbols;
-    std::copy(std::sregex_token_iterator(asmcode.begin(), asmcode.end(), sGlobalSymRegex, 1),
-            std::sregex_token_iterator(), std::inserter(symbols, symbols.begin()));
-    std::sort(symbols.begin(), symbols.end());
-    auto end(std::unique(symbols.begin(), symbols.end()));
-    std::unordered_set<std::string> ignoreSyms;
-
-    // Ignore symbols defined as functions.
-    std::copy(std::sregex_token_iterator(asmcode.begin(), asmcode.end(), sDefineSymRegex, 1),
-            std::sregex_token_iterator(), std::inserter(ignoreSyms, ignoreSyms.begin()));
-
-    // Ignore already declared symbols.
-    std::copy(std::sregex_token_iterator(asmcode.begin(), asmcode.end(), sDeclareSymRegex, 1),
-            std::sregex_token_iterator(), std::inserter(ignoreSyms, ignoreSyms.begin()));
-
-    // Ignore symbols defined/declared as global variables.
-    std::copy(std::sregex_token_iterator(asmcode.begin(), asmcode.end(), sGlobalVarDefRegex, 1),
-            std::sregex_token_iterator(), std::inserter(ignoreSyms, ignoreSyms.begin()));
-    std::string declarations;
-    llvm::raw_string_ostream dstream(declarations);
-    for (auto iter = symbols.begin(); iter != end; ++iter) {
-        const char* sym(iter->c_str());
-        // Skip symbols in sInlineSyms or ignoreSyms.
-        if (sInlineSyms.find(sym) != sInlineSyms.end() || ignoreSyms.find(sym) != ignoreSyms.end()) {
-            continue;
-        }
-        // Skip symbols already in sExternalGlobals.
-        {
-            std::lock_guard<std::mutex> lock(sExternalGlobalsMutex);
-            if (sExternalGlobals.find(sym) != sExternalGlobals.end()) {
-                continue;
-            }
-        }
-        // Skip symbols already in sExternalLibFunctions, unless this is a bind-lib declaration.
-        if (!isBindLibDeclaration) {
-            std::lock_guard<std::mutex> lock(sExternalLibFunctionsMutex);
-            if (sExternalLibFunctions.find(sym) != sExternalLibFunctions.end()) {
-                continue;
-            }
-        }
-        auto gv = extemp::EXTLLVM::getGlobalValue(sym);
-        if (!gv) {
-            continue;
-        }
-        auto func(llvm::dyn_cast<llvm::Function>(gv));
-        if (func) {
-            dstream << "declare " << formatLLVMType(func->getReturnType()) << " @" << sym << " (";
-            bool first(true);
-            for (const auto& arg : func->args()) {
-                if (!first) {
-                    dstream << ", ";
-                } else {
-                    first = false;
-                }
-                dstream << formatLLVMType(arg.getType());
-            }
-            if (func->isVarArg()) {
-                dstream << ", ...";
-            }
-            dstream << ")\n";
-        } else {
-            auto globalVar = llvm::dyn_cast<llvm::GlobalVariable>(gv);
-            if (globalVar) {
-                auto str(formatLLVMType(globalVar->getValueType()));
-                dstream << '@' << sym << " = external global " << str << '\n';
-            } else {
-                // Fallback for other global values.
-                dstream << '@' << sym << " = external global ptr\n";
-        }
-    }
-    }
-
-    llvm::Module* modulePtr = nullptr;
+    Module* modulePtr = nullptr;
 
     EXTLLVM::getThreadSafeContext().withContextDo([&](LLVMContext* ctx) {
-        // Initialize inline bitcode.
-        // On first real compile (not the very first call), compile sInlineString (bitcode.ll)
-        // into binary bitcode for faster loading on subsequent compiles.
-        if (sInlineBitcode.empty()) {
-            static bool first(true);
-            if (!first) {
-                auto newModule(parseAssemblyString(sInlineString, pa, *ctx));
-                if (newModule) {
-                    llvm::raw_string_ostream bitstream(sInlineBitcode);
-                    llvm::WriteBitcodeToFile(*newModule, bitstream);
-                    // After first compile, reduce sInlineString to just type definitions.
-                    // The bitcode module has all the compiled code, but parseAssemblyInto
-                    // needs type definitions in the IR text to resolve type references.
-                    std::string typeDefs;
-                    std::istringstream stream(sInlineString);
-                    std::string line;
-                    while (std::getline(stream, line)) {
-                        stripCR(line);
-                        std::smatch match;
-                        if (std::regex_match(line, match, sTypeDefLineRegex)) {
-                            typeDefs += line + "\n";
-                        }
-                    }
-                    sInlineString = typeDefs;
-                } else {
-                    std::cout << pa.getMessage().str() << std::endl;
-                    abort();
-                }
-            } else {
-                first = false;
+        // Step 1: Initialize template module (first time only).
+        static bool templateInitialized = false;
+        if (!templateInitialized) {
+            if (!initializeTemplateModule(*ctx)) {
+                std::cerr << "Failed to initialize template module" << std::endl;
+                return;
             }
+            templateInitialized = true;
         }
 
-        std::unique_ptr<llvm::Module> newModule;
-
-        // Get user-defined type definitions and external globals.
-        std::string userTypeDefs = getUserTypeDefsStringFiltered(asmcode);
-        std::string externalGlobals = getExternalGlobalsStringFiltered(asmcode);
-
-        if (!sInlineBitcode.empty()) {
-            auto modOrErr(parseBitcodeFile(llvm::MemoryBufferRef(sInlineBitcode, "<string>"), *ctx));
-            if (likely(modOrErr)) {
-                newModule = std::move(modOrErr.get());
-                std::string externalLibFunctions = isBindLibDeclaration ? "" :
-                    getExternalLibFunctionsStringFiltered(asmcode);
-                asmcode = sInlineString + userTypeDefs + externalGlobals + externalLibFunctions + dstream.str() + asmcode;
-                if (parseAssemblyInto(llvm::MemoryBufferRef(asmcode, "<string>"), newModule.get(), nullptr, pa)) {
-                    std::cout << "**** DECL ****\n" << dstream.str() << "**** ENDDECL ****\n" << std::endl;
-                    newModule.reset();
-                }
+        // Step 2: Clone the template module for each compilation.
+        // The template module contains bitcode.ll runtime helpers.
+        // Use LinkOnceODR linkage so duplicate definitions are resolved by the linker.
+        auto baseModule = cloneTemplateModule(*ctx);
+        if (!baseModule) {
+            std::cerr << "Failed to clone template module" << std::endl;
+            return;
+        }
+        
+        // Set linkage to LinkOnceODR so the linker can deduplicate across modules.
+        for (auto& func : baseModule->functions()) {
+            if (!func.isDeclaration() && !func.isIntrinsic()) {
+                func.setLinkage(GlobalValue::LinkOnceODRLinkage);
             }
-        } else {
-            // First compilation - include sInlineString (with type definitions), user type definitions, and external lib functions.
-            // Strip built-in type definitions from asmcode to avoid duplicates with sInlineString.
-            std::string strippedAsmcode = stripBuiltinTypeDefs(asmcode);
-
-            // Also strip declarations of symbols that are already in sInlineSyms.
-            // Uses line-by-line processing to avoid multiline regex issues on Windows.
-            {
-                std::string result;
-                std::istringstream stream(strippedAsmcode);
-                std::string line;
-                bool first = true;
-                while (std::getline(stream, line)) {
-                    stripCR(line);
-                    std::smatch match;
-                    bool keepLine = true;
-                    if (std::regex_match(line, match, sDeclareLineRegex)) {
-                        std::string symName = match[1].str();
-                        if (sInlineSyms.find(symName) != sInlineSyms.end()) {
-                            keepLine = false;
-                        }
-                    }
-                    if (keepLine) {
-                        if (!first) {
-                            result += '\n';
-                        }
-                        result += line;
-                        first = false;
-                    }
-                }
-                // Preserve trailing newline if original had one.
-                if (!strippedAsmcode.empty() && (strippedAsmcode.back() == '\n' || strippedAsmcode.back() == '\r')) {
-                    result += '\n';
-                }
-                strippedAsmcode = result;
+        }
+        for (auto& global : baseModule->globals()) {
+            if (global.hasInitializer()) {
+                global.setLinkage(GlobalValue::LinkOnceODRLinkage);
             }
-
-            std::string externalLibFunctions = getExternalLibFunctionsStringFiltered(strippedAsmcode);
-            strippedAsmcode = sInlineString + userTypeDefs + externalGlobals + externalLibFunctions + dstream.str() + strippedAsmcode;
-            newModule = parseAssemblyString(strippedAsmcode, pa, *ctx);
+        }
+        baseModule->setModuleIdentifier(modname);
+        
+        // Set target triple and data layout.
+        if (!extemp::UNIV::ARCH.empty()) {
+            baseModule->setTargetTriple(Triple(extemp::UNIV::ARCH));
+        }
+        if (EXTLLVM::JIT) {
+            baseModule->setDataLayout(EXTLLVM::JIT->getDataLayout());
         }
 
-        if (!newModule) {
+        // Step 3: Parse user IR with type definitions prepended.
+        std::string fullIR = sTypeDefinitions + irString;
+        SMDiagnostic diag;
+        if (parseAssemblyInto(MemoryBufferRef(fullIR, "<user>"), baseModule.get(), nullptr, diag)) {
             std::string errstr;
-            llvm::raw_string_ostream ss(errstr);
-            pa.print("LLVM IR", ss);
-            printf("%s\n", ss.str().c_str());
-            return; // modulePtr remains nullptr
+            raw_string_ostream ss(errstr);
+            diag.print("LLVM IR", ss);
+            std::cerr << "LLVM IR parse failed for " << modname << ": " << ss.str() << std::endl;
+            std::cerr << "First 1000 chars of IR:\n" << fullIR.substr(0, 1000) << std::endl;
+            return;
         }
 
-        // Extract and store any new type definitions.
-        extractAndStoreTypeDefs(String);
-
-        // Extract and store external global declarations.
-        extractAndStoreExternalGlobals(String);
-
-        // Extract and store external library function declarations.
-        extractAndStoreExternalLibFunctions(String);
-
-        // Set target triple.
-        if (unlikely(!extemp::UNIV::ARCH.empty())) {
-            newModule->setTargetTriple(llvm::Triple(extemp::UNIV::ARCH));
+        // Step 4: Check if this is a bind-lib declaration (register C calling convention).
+        bool isBindLibDeclaration = (irString.find("declare") == 0 && irString.size() < 500);
+        if (isBindLibDeclaration) {
+            for (const auto& func : baseModule->functions()) {
+                if (func.isDeclaration() && !func.isIntrinsic()) {
+                    registerExternalLibFunction(func.getName().str());
+                }
+            }
         }
 
-        // Optimize
+        // Step 5: Add function/global declarations for previously compiled symbols.
+        // This allows the current module to reference symbols from earlier compiles.
+        for (auto& func : baseModule->functions()) {
+            if (!func.isDeclaration()) continue;
+            if (func.isIntrinsic()) continue;
+
+            std::string name = func.getName().str();
+
+            // Look up in global map of compiled functions.
+            auto gv = EXTLLVM::getGlobalValue(name.c_str());
+            if (!gv) continue;
+
+            if (auto srcFunc = dyn_cast<Function>(gv)) {
+                auto funcType = srcFunc->getFunctionType();
+                auto callee = baseModule->getOrInsertFunction(name, funcType);
+                if (auto* newFunc = dyn_cast<Function>(callee.getCallee())) {
+                    if (newFunc->isDeclaration()) {
+                        if (isExternalLibFunction(name)) {
+                            newFunc->setCallingConv(CallingConv::C);
+                        } else {
+                            newFunc->setCallingConv(srcFunc->getCallingConv());
+                        }
+                    }
+                }
+            }
+        }
+
+        for (const auto& global : baseModule->globals()) {
+            if (!global.isDeclaration()) continue;
+
+            std::string name = global.getName().str();
+
+            auto gv = EXTLLVM::getGlobalValue(name.c_str());
+            if (!gv) continue;
+
+            if (auto srcGlobal = dyn_cast<GlobalVariable>(gv)) {
+                baseModule->getOrInsertGlobal(name, srcGlobal->getValueType());
+            }
+        }
+
+        // Step 7: Optimize.
         if (EXTLLVM::OPTIMIZE_COMPILES) {
-            llvm::LoopAnalysisManager LAM;
-            llvm::FunctionAnalysisManager FAM;
-            llvm::CGSCCAnalysisManager CGAM;
-            llvm::ModuleAnalysisManager MAM;
+            LoopAnalysisManager LAM;
+            FunctionAnalysisManager FAM;
+            CGSCCAnalysisManager CGAM;
+            ModuleAnalysisManager MAM;
 
-            llvm::PassBuilder PB;
+            PassBuilder PB;
             PB.registerModuleAnalyses(MAM);
             PB.registerCGSCCAnalyses(CGAM);
             PB.registerFunctionAnalyses(FAM);
             PB.registerLoopAnalyses(LAM);
             PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
 
-            // Use configurable optimization level.
-            llvm::OptimizationLevel optLevel;
+            OptimizationLevel optLevel;
             switch (EXTLLVM::OPTIMIZATION_LEVEL) {
-                case 0: optLevel = llvm::OptimizationLevel::O0; break;
-                case 1: optLevel = llvm::OptimizationLevel::O1; break;
-                case 3: optLevel = llvm::OptimizationLevel::O3; break;
+                case 0: optLevel = OptimizationLevel::O0; break;
+                case 1: optLevel = OptimizationLevel::O1; break;
+                case 3: optLevel = OptimizationLevel::O3; break;
                 case 2:
-                default: optLevel = llvm::OptimizationLevel::O2; break;
+                default: optLevel = OptimizationLevel::O2; break;
             }
-            llvm::ModulePassManager MPM = PB.buildPerModuleDefaultPipeline(optLevel);
-            MPM.run(*newModule, MAM);
+            ModulePassManager MPM = PB.buildPerModuleDefaultPipeline(optLevel);
+            MPM.run(*baseModule, MAM);
         }
 
-        // Verify the module.
-        if (extemp::EXTLLVM::VERIFY_COMPILES && verifyModule(*newModule)) {
-        std::cout << "\nInvalid LLVM IR\n";
-            return;
+        // Step 8: Verify.
+        if (EXTLLVM::VERIFY_COMPILES) {
+            std::string verifyErrors;
+            raw_string_ostream verifyStream(verifyErrors);
+            bool invalid = verifyModule(*baseModule, &verifyStream);
+            if (invalid) {
+                std::cerr << "Invalid LLVM IR for " << modname << ":\n" << verifyErrors << std::endl;
+                return;
+            }
         }
 
-        modulePtr = newModule.get();
+        modulePtr = baseModule.get();
 
-        // Extract symbol names from the module.
+        // Step 9: Extract symbol names (only non-declarations defined in this module).
         std::vector<std::string> symbolNames;
-        for (const auto& func : newModule->getFunctionList()) {
+        for (const auto& func : baseModule->getFunctionList()) {
             if (!func.isDeclaration()) {
                 symbolNames.push_back(func.getName().str());
             }
         }
-        for (const auto& glob : newModule->globals()) {
+        for (const auto& glob : baseModule->globals()) {
             if (!glob.isDeclaration()) {
                 symbolNames.push_back(glob.getName().str());
             }
         }
 
-        // Clone the module for metadata.
-        auto metadataModule = llvm::CloneModule(*newModule);
+        // Step 10: Clone for metadata tracking.
+        auto metadataModule = CloneModule(*baseModule);
 
-        // Add module to ORC JIT with symbol tracking.
-        auto TSM = llvm::orc::ThreadSafeModule(std::move(newModule), EXTLLVM::getThreadSafeContext());
+        // Step 11: Add to ORC JIT.
+        auto TSM = orc::ThreadSafeModule(std::move(baseModule),
+                                          EXTLLVM::getThreadSafeContext());
         auto err = EXTLLVM::addTrackedModule(std::move(TSM), symbolNames);
 
-        // Register cloned module metadata.
         if (err) {
-            std::cerr << "Failed to add module to JIT: "
-                      << llvm::toString(std::move(err)) << std::endl;
+            std::cerr << "Failed to add module " << modname << " to JIT: "
+                      << toString(std::move(err)) << std::endl;
             modulePtr = nullptr;
         } else {
             modulePtr = metadataModule.get();
             EXTLLVM::addModule(metadataModule.get());
-            // Transfer ownership to Ms vector.
+            
+            // Add declarations for newly defined symbols to sTypeDefinitions.
+            // This allows subsequent compilations to reference these symbols.
+            // We also need to add any new type definitions from the module.
+            {
+                std::lock_guard<std::mutex> lock(sTemplateMutex);
+                
+                // First, add any identified struct types from the module.
+                for (auto* structType : metadataModule->getIdentifiedStructTypes()) {
+                    if (structType->hasName() && !structType->isOpaque()) {
+                        // Skip if type already defined
+                        std::string typeName = "%" + structType->getName().str() + " = type ";
+                        if (sTypeDefinitions.find(typeName) != std::string::npos) {
+                            continue;
+                        }
+                        
+                        std::string typeStr;
+                        raw_string_ostream ts(typeStr);
+                        ts << typeName;
+                        
+                        // Print struct body: { element1, element2, ... }
+                        if (structType->isPacked()) {
+                            ts << "<{ ";
+                        } else {
+                            ts << "{ ";
+                        }
+                        for (unsigned i = 0; i < structType->getNumElements(); ++i) {
+                            if (i > 0) ts << ", ";
+                            structType->getElementType(i)->print(ts, false, true);
+                        }
+                        if (structType->isPacked()) {
+                            ts << " }>";
+                        } else {
+                            ts << " }";
+                        }
+                        ts << "\n";
+                        sTypeDefinitions += ts.str();
+                    }
+                }
+                
+                // Now add function declarations.
+                for (const auto& func : metadataModule->functions()) {
+                    if (func.isDeclaration()) continue;
+                    
+                    // Skip if function already declared in sTypeDefinitions
+                    std::string funcRef = "@" + func.getName().str() + "(";
+                    if (sTypeDefinitions.find(funcRef) != std::string::npos) {
+                        continue;
+                    }
+                    
+                    std::string declStr;
+                    raw_string_ostream ss(declStr);
+                    
+                    ss << "declare ";
+                    if (func.getCallingConv() == CallingConv::Fast) {
+                        ss << "fastcc ";
+                    } else if (func.getCallingConv() == CallingConv::C) {
+                        ss << "ccc ";
+                    }
+                    
+                    // Print function type signature properly.
+                    auto* funcType = func.getFunctionType();
+                    funcType->getReturnType()->print(ss, false, true);
+                    ss << " @" << func.getName() << "(";
+                    
+                    bool first = true;
+                    for (unsigned i = 0; i < funcType->getNumParams(); ++i) {
+                        if (!first) ss << ", ";
+                        first = false;
+                        funcType->getParamType(i)->print(ss, false, true);
+                    }
+                    if (funcType->isVarArg()) {
+                        if (!first) ss << ", ";
+                        ss << "...";
+                    }
+                    ss << ")";
+                    
+                    if (func.hasFnAttribute(Attribute::NoUnwind)) {
+                        ss << " nounwind";
+                    }
+                    ss << "\n";
+                    
+                    sTypeDefinitions += ss.str();
+                }
+                
+                for (const auto& glob : metadataModule->globals()) {
+                    // Add external declarations for all globals so subsequent modules
+                    // can reference them. Skip if already present in sTypeDefinitions.
+                    std::string globalName = "@" + glob.getName().str();
+                    
+                    // Skip if already present (as external or defined)
+                    if (sTypeDefinitions.find(globalName + " = ") != std::string::npos) {
+                        continue;
+                    }
+                    
+                    std::string declStr;
+                    raw_string_ostream ss(declStr);
+                    
+                    ss << globalName << " = external ";
+                    if (glob.isConstant()) {
+                        ss << "constant ";
+                    } else {
+                        ss << "global ";
+                    }
+                    glob.getValueType()->print(ss, false, true);
+                    ss << "\n";
+                    
+                    sTypeDefinitions += ss.str();
+                }
+                
+                // Also extract external global declarations from the original IR string.
+                // LLVM drops unused external declarations during parsing, so we need to
+                // capture them from the source IR to make them available to subsequent modules.
+                extractExternalGlobalsLockless(irString);
+                
+                // Extract type definitions from the user IR string.
+                // LLVM's module may not preserve forward declarations or opaque types,
+                // so we need to capture them from the source IR as well.
+                std::istringstream irStream(irString);
+                std::string irLine;
+                while (std::getline(irStream, irLine)) {
+                    // Strip trailing CR
+                    if (!irLine.empty() && irLine.back() == '\r') {
+                        irLine.pop_back();
+                    }
+                    std::string typeDef = extractTypeDef(irLine);
+                    if (!typeDef.empty()) {
+                        // Check if already defined
+                        size_t eqPos = typeDef.find(" = type ");
+                        if (eqPos != std::string::npos) {
+                            std::string typeName = typeDef.substr(0, eqPos);
+                            if (sTypeDefinitions.find(typeName + " = type ") == std::string::npos) {
+                                sTypeDefinitions += typeDef;
+                            }
+                        }
+                    }
+                }
+            }
+            
             metadataModule.release();
         }
     });
@@ -727,4 +707,3 @@ static llvm::Module* jitCompile(const std::string& String)
 }
 
 } // end namespace
-

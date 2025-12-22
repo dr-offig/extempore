@@ -148,7 +148,8 @@ set(EXTEMPORE_LLVM_COMPONENTS
     AsmParser
     Passes
     MCDisassembler
-    IRPrinter)
+    IRPrinter
+    Linker)
 
 llvm_map_components_to_libnames(LLVM_LIBRARIES ${EXTEMPORE_LLVM_COMPONENTS})
 message(STATUS "LLVM libraries: ${LLVM_LIBRARIES}")

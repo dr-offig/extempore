@@ -615,7 +615,9 @@ int OPTIMIZATION_LEVEL = 2;  // Default to O2
 
 // Get function address - main lookup function
 uint64_t getFunctionAddress(const std::string& name) {
-    if (!JIT) return 0;
+    if (!JIT) {
+        return 0;
+    }
 
     auto sym = JIT->lookup(name);
     if (!sym) {
