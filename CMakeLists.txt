@@ -327,129 +327,94 @@ set(AOT_EXTERNAL_GRAPHICS_LIBS
     "libs/external/graphics-pipeline.xtm"
     "libs/external/assimp.xtm")
 
-if(WIN32)
-    # Windows: sequential AOT compilation via script
-    macro(extempore_aot_target target_name libs_var)
-        set(AOT_LIBS_LIST "${${libs_var}}")
-        string(REPLACE ";" "\;" AOT_LIBS_LIST "${AOT_LIBS_LIST}")
-        configure_file(
-            ${CMAKE_CURRENT_SOURCE_DIR}/extras/cmake/aot_windows.cmake.in
-            ${CMAKE_BINARY_DIR}/aot_${target_name}.cmake
-            @ONLY)
-        add_custom_target(aot_${target_name} ALL
-            COMMAND ${CMAKE_COMMAND} -P ${CMAKE_BINARY_DIR}/aot_${target_name}.cmake
-            COMMENT "AOT compiling ${target_name} libraries..."
-            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-        set_target_properties(aot_${target_name} PROPERTIES FOLDER AOT)
-    endmacro()
-
-    extempore_aot_target(core AOT_CORE_LIBS)
-    add_dependencies(aot_core extempore)
-
-    if(EXTERNAL_SHLIBS_AUDIO AND EXTERNAL_SHLIBS_GRAPHICS)
-        list(APPEND AOT_CORE_LIBS ${AOT_EXTERNAL_AUDIO_LIBS} ${AOT_EXTERNAL_GRAPHICS_LIBS})
-        extempore_aot_target(external AOT_CORE_LIBS)
-        add_dependencies(aot_external extempore external_shlibs_audio external_shlibs_graphics)
-    elseif(EXTERNAL_SHLIBS_AUDIO)
-        list(APPEND AOT_CORE_LIBS ${AOT_EXTERNAL_AUDIO_LIBS})
-        extempore_aot_target(external_audio AOT_CORE_LIBS)
-        add_dependencies(aot_external_audio extempore external_shlibs_audio)
-    elseif(EXTERNAL_SHLIBS_GRAPHICS)
-        list(APPEND AOT_CORE_LIBS ${AOT_EXTERNAL_GRAPHICS_LIBS})
-        extempore_aot_target(external_graphics AOT_CORE_LIBS)
-        add_dependencies(aot_external_graphics extempore external_shlibs_graphics)
-    endif()
-
-else()
-    # Unix: parallel AOT compilation with proper dependencies
-    if(APPLE)
-        find_program(TIMEOUT_CMD gtimeout)
-        if(NOT TIMEOUT_CMD)
-            find_program(TIMEOUT_CMD timeout)
-        endif()
-    else()
+# AOT compilation with proper per-library dependencies
+if(APPLE)
+    find_program(TIMEOUT_CMD gtimeout)
+    if(NOT TIMEOUT_CMD)
         find_program(TIMEOUT_CMD timeout)
     endif()
-    set(AOT_TIMEOUT_SECONDS 300)
+elseif(NOT WIN32)
+    find_program(TIMEOUT_CMD timeout)
+endif()
+set(AOT_TIMEOUT_SECONDS 300)
 
-    macro(aotcompile_lib libfile group)
-        get_filename_component(_basename ${libfile} NAME_WE)
-        set(_targetname aot_${_basename})
-        set(_ll_file ${CMAKE_CURRENT_SOURCE_DIR}/libs/aot-cache/xtm${_basename}.ll)
-        set(_xtm_file ${CMAKE_CURRENT_SOURCE_DIR}/libs/aot-cache/${_basename}.xtm)
+macro(aotcompile_lib libfile group)
+    get_filename_component(_basename ${libfile} NAME_WE)
+    set(_targetname aot_${_basename})
+    set(_ll_file ${CMAKE_CURRENT_SOURCE_DIR}/libs/aot-cache/xtm${_basename}.ll)
+    set(_xtm_file ${CMAKE_CURRENT_SOURCE_DIR}/libs/aot-cache/${_basename}.xtm)
 
-        if(TIMEOUT_CMD)
-            set(_extempore_cmd ${TIMEOUT_CMD} --kill-after=10 ${AOT_TIMEOUT_SECONDS} $<TARGET_FILE:extempore>)
-        else()
-            set(_extempore_cmd $<TARGET_FILE:extempore>)
-        endif()
-
-        set(_dep_files "")
-        foreach(_dep ${ARGN})
-            list(APPEND _dep_files ${CMAKE_CURRENT_SOURCE_DIR}/libs/aot-cache/xtm${_dep}.ll)
-            list(APPEND _dep_files ${CMAKE_CURRENT_SOURCE_DIR}/libs/aot-cache/${_dep}.xtm)
-        endforeach()
-
-        add_custom_command(OUTPUT ${_ll_file} ${_xtm_file}
-            COMMAND ${_extempore_cmd} --nobase
-                --batch "(impc:aot:compile-xtm-file \"${libfile}\")"
-            DEPENDS ${libfile} ${_dep_files}
-            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-            VERBATIM)
-
-        add_custom_target(${_targetname} DEPENDS ${_ll_file} ${_xtm_file} extempore)
-        set_target_properties(${_targetname} PROPERTIES FOLDER AOT)
-
-        if(NOT ${group} STREQUAL "core")
-            add_dependencies(${_targetname} external_shlibs_${group})
-            add_dependencies(aot_external_${group} ${_targetname})
-        else()
-            add_dependencies(aot_core ${_targetname})
-        endif()
-
-        foreach(_dep ${ARGN})
-            add_dependencies(${_targetname} aot_${_dep})
-        endforeach()
-    endmacro()
-
-    # Core libs
-    add_custom_target(aot_core)
-    set_target_properties(aot_core PROPERTIES FOLDER AOT)
-    add_dependencies(aot_core extempore)
-    aotcompile_lib(libs/base/base.xtm core)
-    aotcompile_lib(libs/core/math.xtm core base)
-    aotcompile_lib(libs/core/rational.xtm core base)
-    aotcompile_lib(libs/core/audiobuffer.xtm core base)
-    aotcompile_lib(libs/core/audio_dsp.xtm core base rational audiobuffer)
-    aotcompile_lib(libs/core/instruments.xtm core base audio_dsp)
-
-    # External audio libs
-    if(EXTERNAL_SHLIBS_AUDIO)
-        add_custom_target(aot_external_audio ALL)
-        set_target_properties(aot_external_audio PROPERTIES FOLDER AOT)
-        add_dependencies(aot_external_audio extempore external_shlibs_audio)
-        aotcompile_lib(libs/external/fft.xtm audio base math)
-        aotcompile_lib(libs/external/sndfile.xtm audio base)
-        aotcompile_lib(libs/external/audio_dsp_ext.xtm audio base fft sndfile)
-        aotcompile_lib(libs/external/instruments_ext.xtm audio base sndfile instruments)
-        aotcompile_lib(libs/external/portmidi.xtm audio base)
+    if(TIMEOUT_CMD)
+        set(_extempore_cmd ${TIMEOUT_CMD} --kill-after=10 ${AOT_TIMEOUT_SECONDS} $<TARGET_FILE:extempore>)
+    else()
+        set(_extempore_cmd $<TARGET_FILE:extempore>)
     endif()
 
-    # External graphics libs
-    if(EXTERNAL_SHLIBS_GRAPHICS)
-        add_custom_target(aot_external_graphics)
-        set_target_properties(aot_external_graphics PROPERTIES FOLDER AOT)
-        add_dependencies(aot_external_graphics extempore external_shlibs_graphics)
-        aotcompile_lib(libs/external/stb_image.xtm graphics base)
-        aotcompile_lib(libs/external/glfw3.xtm graphics base)
-        aotcompile_lib(libs/external/gl/glcore-${GL_BIND_METHOD}.xtm graphics base)
-        aotcompile_lib(libs/external/gl/gl-objects.xtm graphics base math glcore-${GL_BIND_METHOD} stb_image)
-        aotcompile_lib(libs/external/gl/gl-objects2.xtm graphics base glcore-${GL_BIND_METHOD} stb_image)
-        aotcompile_lib(libs/external/graphics-pipeline.xtm graphics base math glcore-${GL_BIND_METHOD} stb_image gl-objects2)
-        aotcompile_lib(libs/external/nanovg.xtm graphics base glcore-${GL_BIND_METHOD})
-        aotcompile_lib(libs/external/assimp.xtm graphics base stb_image graphics-pipeline)
-        aotcompile_lib(libs/external/gl/glcompat-${GL_BIND_METHOD}.xtm graphics base)
+    set(_dep_files "")
+    foreach(_dep ${ARGN})
+        list(APPEND _dep_files ${CMAKE_CURRENT_SOURCE_DIR}/libs/aot-cache/xtm${_dep}.ll)
+        list(APPEND _dep_files ${CMAKE_CURRENT_SOURCE_DIR}/libs/aot-cache/${_dep}.xtm)
+    endforeach()
+
+    add_custom_command(OUTPUT ${_ll_file} ${_xtm_file}
+        COMMAND ${_extempore_cmd} --nobase
+            --batch "(impc:aot:compile-xtm-file \"${libfile}\")"
+        DEPENDS ${libfile} ${_dep_files}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        VERBATIM)
+
+    add_custom_target(${_targetname} DEPENDS ${_ll_file} ${_xtm_file} extempore)
+    set_target_properties(${_targetname} PROPERTIES FOLDER AOT)
+
+    if(NOT ${group} STREQUAL "core")
+        add_dependencies(${_targetname} external_shlibs_${group})
+        add_dependencies(aot_external_${group} ${_targetname})
+    else()
+        add_dependencies(aot_core ${_targetname})
     endif()
+
+    foreach(_dep ${ARGN})
+        add_dependencies(${_targetname} aot_${_dep})
+    endforeach()
+endmacro()
+
+# Core libs
+add_custom_target(aot_core)
+set_target_properties(aot_core PROPERTIES FOLDER AOT)
+add_dependencies(aot_core extempore)
+aotcompile_lib(libs/base/base.xtm core)
+aotcompile_lib(libs/core/math.xtm core base)
+aotcompile_lib(libs/core/rational.xtm core base)
+aotcompile_lib(libs/core/audiobuffer.xtm core base)
+aotcompile_lib(libs/core/audio_dsp.xtm core base rational audiobuffer)
+aotcompile_lib(libs/core/instruments.xtm core base audio_dsp)
+
+# External audio libs
+if(EXTERNAL_SHLIBS_AUDIO)
+    add_custom_target(aot_external_audio ALL)
+    set_target_properties(aot_external_audio PROPERTIES FOLDER AOT)
+    add_dependencies(aot_external_audio extempore external_shlibs_audio)
+    aotcompile_lib(libs/external/fft.xtm audio base math)
+    aotcompile_lib(libs/external/sndfile.xtm audio base)
+    aotcompile_lib(libs/external/audio_dsp_ext.xtm audio base fft sndfile)
+    aotcompile_lib(libs/external/instruments_ext.xtm audio base sndfile instruments)
+    aotcompile_lib(libs/external/portmidi.xtm audio base)
+endif()
+
+# External graphics libs
+if(EXTERNAL_SHLIBS_GRAPHICS)
+    add_custom_target(aot_external_graphics)
+    set_target_properties(aot_external_graphics PROPERTIES FOLDER AOT)
+    add_dependencies(aot_external_graphics extempore external_shlibs_graphics)
+    aotcompile_lib(libs/external/stb_image.xtm graphics base)
+    aotcompile_lib(libs/external/glfw3.xtm graphics base)
+    aotcompile_lib(libs/external/gl/glcore-${GL_BIND_METHOD}.xtm graphics base)
+    aotcompile_lib(libs/external/gl/gl-objects.xtm graphics base math glcore-${GL_BIND_METHOD} stb_image)
+    aotcompile_lib(libs/external/gl/gl-objects2.xtm graphics base glcore-${GL_BIND_METHOD} stb_image)
+    aotcompile_lib(libs/external/graphics-pipeline.xtm graphics base math glcore-${GL_BIND_METHOD} stb_image gl-objects2)
+    aotcompile_lib(libs/external/nanovg.xtm graphics base glcore-${GL_BIND_METHOD})
+    aotcompile_lib(libs/external/assimp.xtm graphics base stb_image graphics-pipeline)
+    aotcompile_lib(libs/external/gl/glcompat-${GL_BIND_METHOD}.xtm graphics base)
 endif()
 
 add_custom_target(clean_aot
