@@ -172,22 +172,6 @@ static std::string formatLLVMType(llvm::Type* Type)
     return ss.str();
 }
 
-static const char* linkageToString(llvm::GlobalValue::LinkageTypes linkage)
-{
-    using LT = llvm::GlobalValue::LinkageTypes;
-    switch (linkage) {
-        case LT::LinkOnceAnyLinkage: return "linkonce";
-        case LT::LinkOnceODRLinkage: return "linkonce_odr";
-        case LT::WeakAnyLinkage: return "weak";
-        case LT::WeakODRLinkage: return "weak_odr";
-        case LT::AvailableExternallyLinkage: return "available_externally";
-        case LT::AppendingLinkage: return "appending";
-        case LT::CommonLinkage: return "common";
-        case LT::ExternalWeakLinkage: return "extern_weak";
-        default: return "";
-    }
-}
-
 #include "ffi/utility.inc"
 #include "ffi/ipc.inc"
 #include "ffi/assoc.inc"
