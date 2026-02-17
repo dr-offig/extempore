@@ -65,6 +65,37 @@ impc:compiler:flush-jit-compilation-queue
 `EXTLLVM::getFunction()` / `EXTLLVM::getGlobalValue()` look up symbols in this
 map.
 
+## sTypeDefinitions accumulator
+
+`jitCompile()` maintains a static string `sTypeDefinitions` (~400KB after full
+library loading). It accumulates LLVM IR declarations (struct types, function
+declarations, external globals) from every successful compilation so that
+subsequent modules can reference earlier symbols. It is prepended to every user
+IR string before parsing:
+
+```
+fullIR = sTypeDefinitions + userIR
+```
+
+This is parsed via `parseAssemblyInto()` into a cloned template module (from
+`bitcode.ll`). If `sTypeDefinitions` contains a declaration that conflicts with
+something already defined in the template module, the parse fails silently
+(stderr is /dev/null) and the Scheme layer sees `#f` from
+`llvm:jit-compile-ir-string`, producing "FLUSH FAILED".
+
+## Adhoc polymorphism names
+
+The xtlang compiler generates specialised function names for ad-hoc
+polymorphism using the pattern:
+
+```
+<basename>_adhoc_<counter>_<base64-encoded-type-signature>
+```
+
+For example: `xtm_play_adhoc_492_W05vdGVEYXRhKi...`. The base64 portion
+(`cname-encode`/`cname-decode` in `runtime/llvmir.xtm`) encodes the full type
+signature. These names can be extremely long (hundreds of characters).
+
 ## Common issues
 
 ### Type definitions
@@ -84,6 +115,13 @@ Check that:
 1. Module was added to ORC JIT successfully
 2. `EXTLLVM::addModule()` was called with the metadata clone
 3. Symbol name matches exactly (including mangling like `_adhoc_`, `_poly_`)
+
+### --batch mode hangs after errors
+
+When a compilation error occurs in `--batch` mode, the process does not
+automatically exit --- it hangs waiting for further input. Use `timeout` when
+running batch tests. The `sys:load-then-quit` helper is designed to exit after a
+timeout, but compilation errors can prevent it from reaching the quit call.
 
 ## Debugging commands
 
@@ -113,8 +151,37 @@ Check that:
 
 ## C++ debug output
 
-Use `printf()` with `fflush(stdout)` rather than `std::cerr` - extempore may
-redirect stderr.
+**stderr is unconditionally redirected to /dev/null** at startup
+(`src/Extempore.cpp:174`: `freopen("/dev/null", "w", stderr)`). Neither
+`std::cerr`, `fprintf(stderr, ...)`, nor any amount of flushing will produce
+visible output. Options:
+
+- Write to a file: `FILE* f = fopen("/tmp/xtm_debug.log", "a"); fprintf(f, ...); fflush(f);`
+- Write to stdout: `printf(...); fflush(stdout);` (mixes with Scheme output)
+- Temporarily comment out the `freopen` line for a debug build
+
+## Building and testing
+
+```bash
+# configure (fetches LLVM ~30s, full configure ~30s)
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DEXTERNAL_SHLIBS_GRAPHICS=OFF
+
+# build (LLVM is the bulk of the build time)
+cmake --build build --target extempore -- -j$(nproc)
+
+# run core tests (no audio needed, ~150s total)
+cd build && ctest -L libs-core --output-on-failure
+
+# run audio example tests (need audio libs built, each test has 300s timeout)
+cd build && ctest -L examples-audio --output-on-failure
+
+# quick smoke test of a specific file
+timeout 120 ./build/extempore --noaudio --batch \
+  '(sys:load-then-quit "examples/core/fmsynth.xtm" 10)'
+```
+
+Test labels: `libs-core`, `libs-external`, `examples-audio`, `examples-core`,
+`examples-graphics`. Defined in `extras/cmake/tests.cmake`.
 
 ## Key files
 
