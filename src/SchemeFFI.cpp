@@ -193,6 +193,10 @@ static std::mutex sExternalLibFunctionNamesMutex;
 static std::string sTemplateBitcode;
 // Type definitions extracted from bitcode.ll - prepended to every user IR.
 static std::string sTypeDefinitions;
+// Global/function names defined in the template module (bitcode.ll).
+// Declarations for these must not be added to sTypeDefinitions, since they
+// already exist in every cloned template module and would cause redefinitions.
+static std::unordered_set<std::string> sTemplateGlobalNames;
 static std::mutex sTemplateMutex;
 void initSchemeFFI(scheme* sc)
 {
@@ -259,8 +263,11 @@ static void extractExternalGlobalsLockless(const std::string& irString) {
         if (line.size() > 1 && line[0] == '@') {
             size_t extPos = line.find(" = external global ");
             if (extPos != std::string::npos) {
-                // Check if this declaration is already in sTypeDefinitions
                 std::string globalName = line.substr(0, extPos);
+                std::string bareName = line.substr(1, extPos - 1);
+                if (sTemplateGlobalNames.count(bareName)) {
+                    continue;
+                }
                 if (sTypeDefinitions.find(globalName + " = external") == std::string::npos) {
                     sTypeDefinitions += line + "\n";
                 }
@@ -339,6 +346,15 @@ static bool initializeTemplateModule(llvm::LLVMContext& ctx) {
     if (!templateModule) {
         std::cerr << "Failed to parse bitcode.ll: " << diag.getMessage().str() << std::endl;
         return false;
+    }
+
+    for (const auto& global : templateModule->globals()) {
+        sTemplateGlobalNames.insert(global.getName().str());
+    }
+    for (const auto& func : templateModule->functions()) {
+        if (!func.isDeclaration() && !func.isIntrinsic()) {
+            sTemplateGlobalNames.insert(func.getName().str());
+        }
     }
 
     llvm::raw_string_ostream bitstream(sTemplateBitcode);
@@ -628,11 +644,11 @@ static llvm::Module* jitCompile(const std::string& irString)
                 }
                 
                 for (const auto& glob : metadataModule->globals()) {
-                    // Add external declarations for all globals so subsequent modules
-                    // can reference them. Skip if already present in sTypeDefinitions.
-                    std::string globalName = "@" + glob.getName().str();
-                    
-                    // Skip if already present (as external or defined)
+                    std::string name = glob.getName().str();
+                    if (sTemplateGlobalNames.count(name)) {
+                        continue;
+                    }
+                    std::string globalName = "@" + name;
                     if (sTypeDefinitions.find(globalName + " = ") != std::string::npos) {
                         continue;
                     }
