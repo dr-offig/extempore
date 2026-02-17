@@ -191,10 +191,12 @@ static std::mutex sExternalLibFunctionNamesMutex;
 
 // Cached template module (parsed bitcode.ll) and its binary form for fast cloning.
 static std::string sTemplateBitcode;
-// Type definitions extracted from bitcode.ll - prepended to every user IR.
-static std::string sTypeDefinitions;
+// IR declarations keyed by bare name (without % or @ prefix), prepended to every user IR.
+static std::unordered_map<std::string, std::string> sTypeDefs;
+static std::unordered_map<std::string, std::string> sFuncDecls;
+static std::unordered_map<std::string, std::string> sGlobalDecls;
 // Global/function names defined in the template module (bitcode.ll).
-// Declarations for these must not be added to sTypeDefinitions, since they
+// Declarations for these must not be added to the maps above, since they
 // already exist in every cloned template module and would cause redefinitions.
 static std::unordered_set<std::string> sTemplateGlobalNames;
 static std::mutex sTemplateMutex;
@@ -247,7 +249,18 @@ static void registerExternalLibFunction(const std::string& name) {
     sExternalLibFunctionNames.insert(name);
 }
 
-// Extract external global declarations from IR string and add to sTypeDefinitions.
+// Build the preamble string from the three maps (types, then functions, then globals).
+// NOTE: caller must hold sTemplateMutex.
+static std::string buildPreamble() {
+    std::string preamble;
+    preamble.reserve(sTypeDefs.size() * 80 + sFuncDecls.size() * 120 + sGlobalDecls.size() * 60);
+    for (const auto& [_, val] : sTypeDefs) preamble += val;
+    for (const auto& [_, val] : sFuncDecls) preamble += val;
+    for (const auto& [_, val] : sGlobalDecls) preamble += val;
+    return preamble;
+}
+
+// Extract external global declarations from IR string and add to sGlobalDecls.
 // This handles globals that are declared but not defined (e.g., @SAMPLE_RATE = external global i32).
 // These get dropped by LLVM if they're not used in the same module.
 // NOTE: lockless version - caller must hold sTemplateMutex.
@@ -263,14 +276,11 @@ static void extractExternalGlobalsLockless(const std::string& irString) {
         if (line.size() > 1 && line[0] == '@') {
             size_t extPos = line.find(" = external global ");
             if (extPos != std::string::npos) {
-                std::string globalName = line.substr(0, extPos);
                 std::string bareName = line.substr(1, extPos - 1);
                 if (sTemplateGlobalNames.count(bareName)) {
                     continue;
                 }
-                if (sTypeDefinitions.find(globalName + " = external") == std::string::npos) {
-                    sTypeDefinitions += line + "\n";
-                }
+                sGlobalDecls.emplace(bareName, line + "\n");
             }
         }
     }
@@ -334,7 +344,11 @@ static bool initializeTemplateModule(llvm::LLVMContext& ctx) {
         
         std::string typeDef = extractTypeDef(line);
         if (!typeDef.empty()) {
-            sTypeDefinitions += typeDef;
+            size_t eqPos = typeDef.find(" = type ");
+            if (eqPos != std::string::npos) {
+                std::string bareName = typeDef.substr(1, eqPos - 1);
+                sTypeDefs.emplace(bareName, typeDef);
+            }
             continue;
         }
 
@@ -430,7 +444,7 @@ static llvm::Module* jitCompile(const std::string& irString)
         }
 
         // Step 3: Parse user IR with type definitions prepended.
-        std::string fullIR = sTypeDefinitions + irString;
+        std::string fullIR = buildPreamble() + irString;
         SMDiagnostic diag;
         if (parseAssemblyInto(MemoryBufferRef(fullIR, "<user>"), baseModule.get(), nullptr, diag)) {
             std::string errstr;
@@ -559,7 +573,7 @@ static llvm::Module* jitCompile(const std::string& irString)
             modulePtr = metadataModule.get();
             EXTLLVM::addModule(metadataModule.get());
             
-            // Add declarations for newly defined symbols to sTypeDefinitions.
+            // Add declarations for newly defined symbols to the IR preamble maps.
             // This allows subsequent compilations to reference these symbols.
             // We also need to add any new type definitions from the module.
             {
@@ -568,17 +582,15 @@ static llvm::Module* jitCompile(const std::string& irString)
                 // First, add any identified struct types from the module.
                 for (auto* structType : metadataModule->getIdentifiedStructTypes()) {
                     if (structType->hasName() && !structType->isOpaque()) {
-                        // Skip if type already defined
-                        std::string typeName = "%" + structType->getName().str() + " = type ";
-                        if (sTypeDefinitions.find(typeName) != std::string::npos) {
+                        std::string name = structType->getName().str();
+                        if (sTypeDefs.count(name)) {
                             continue;
                         }
-                        
+
                         std::string typeStr;
                         raw_string_ostream ts(typeStr);
-                        ts << typeName;
-                        
-                        // Print struct body: { element1, element2, ... }
+                        ts << "%" << name << " = type ";
+
                         if (structType->isPacked()) {
                             ts << "<{ ";
                         } else {
@@ -594,35 +606,33 @@ static llvm::Module* jitCompile(const std::string& irString)
                             ts << " }";
                         }
                         ts << "\n";
-                        sTypeDefinitions += ts.str();
+                        sTypeDefs.emplace(name, ts.str());
                     }
                 }
                 
                 // Now add function declarations.
                 for (const auto& func : metadataModule->functions()) {
                     if (func.isDeclaration()) continue;
-                    
-                    // Skip if function already declared in sTypeDefinitions
-                    std::string funcRef = "@" + func.getName().str() + "(";
-                    if (sTypeDefinitions.find(funcRef) != std::string::npos) {
+
+                    std::string name = func.getName().str();
+                    if (sFuncDecls.count(name)) {
                         continue;
                     }
-                    
+
                     std::string declStr;
                     raw_string_ostream ss(declStr);
-                    
+
                     ss << "declare ";
                     if (func.getCallingConv() == CallingConv::Fast) {
                         ss << "fastcc ";
                     } else if (func.getCallingConv() == CallingConv::C) {
                         ss << "ccc ";
                     }
-                    
-                    // Print function type signature properly.
+
                     auto* funcType = func.getFunctionType();
                     funcType->getReturnType()->print(ss, false, true);
-                    ss << " @" << func.getName() << "(";
-                    
+                    ss << " @" << name << "(";
+
                     bool first = true;
                     for (unsigned i = 0; i < funcType->getNumParams(); ++i) {
                         if (!first) ss << ", ";
@@ -634,13 +644,13 @@ static llvm::Module* jitCompile(const std::string& irString)
                         ss << "...";
                     }
                     ss << ")";
-                    
+
                     if (func.hasFnAttribute(Attribute::NoUnwind)) {
                         ss << " nounwind";
                     }
                     ss << "\n";
-                    
-                    sTypeDefinitions += ss.str();
+
+                    sFuncDecls.emplace(name, ss.str());
                 }
                 
                 for (const auto& glob : metadataModule->globals()) {
@@ -648,15 +658,14 @@ static llvm::Module* jitCompile(const std::string& irString)
                     if (sTemplateGlobalNames.count(name)) {
                         continue;
                     }
-                    std::string globalName = "@" + name;
-                    if (sTypeDefinitions.find(globalName + " = ") != std::string::npos) {
+                    if (sGlobalDecls.count(name)) {
                         continue;
                     }
-                    
+
                     std::string declStr;
                     raw_string_ostream ss(declStr);
-                    
-                    ss << globalName << " = external ";
+
+                    ss << "@" << name << " = external ";
                     if (glob.isConstant()) {
                         ss << "constant ";
                     } else {
@@ -664,8 +673,8 @@ static llvm::Module* jitCompile(const std::string& irString)
                     }
                     glob.getValueType()->print(ss, false, true);
                     ss << "\n";
-                    
-                    sTypeDefinitions += ss.str();
+
+                    sGlobalDecls.emplace(name, ss.str());
                 }
                 
                 // Also extract external global declarations from the original IR string.
@@ -679,19 +688,15 @@ static llvm::Module* jitCompile(const std::string& irString)
                 std::istringstream irStream(irString);
                 std::string irLine;
                 while (std::getline(irStream, irLine)) {
-                    // Strip trailing CR
                     if (!irLine.empty() && irLine.back() == '\r') {
                         irLine.pop_back();
                     }
                     std::string typeDef = extractTypeDef(irLine);
                     if (!typeDef.empty()) {
-                        // Check if already defined
                         size_t eqPos = typeDef.find(" = type ");
                         if (eqPos != std::string::npos) {
-                            std::string typeName = typeDef.substr(0, eqPos);
-                            if (sTypeDefinitions.find(typeName + " = type ") == std::string::npos) {
-                                sTypeDefinitions += typeDef;
-                            }
+                            std::string bareName = typeDef.substr(1, eqPos - 1);
+                            sTypeDefs.emplace(bareName, typeDef);
                         }
                     }
                 }
