@@ -373,6 +373,12 @@ EXPORT int extempore_init(int argc, char** argv)
     }
 #endif
 
+    if (extemp::UNIV::AUDIO_NONE) {
+        if (extemp::UNIV::TIME_DIVISION == 1) {
+            extemp::UNIV::TIME_DIVISION = 4;
+        }
+        extemp::TaskScheduler::I()->setFrames(extemp::UNIV::NUM_FRAMES);
+    }
     extemp::TaskScheduler::I()->start();
     extemp::EXTLLVM::initLLVM();
     extemp::SchemeProcess* primary = 0;
@@ -387,11 +393,6 @@ EXPORT int extempore_init(int argc, char** argv)
     if (!extemp::UNIV::AUDIO_NONE) {
         extemp::AudioDevice* dev = extemp::AudioDevice::I();
         dev->start();
-    } else {
-	  // don't need this anymore, but we do need timediv to be > 1
-	  if (extemp::UNIV::TIME_DIVISION == 1) {
-		extemp::UNIV::TIME_DIVISION = 4;
-	  }
     }
     ascii_normal();
 #ifdef SUBSUME_PRIMARY
