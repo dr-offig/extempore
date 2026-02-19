@@ -56,7 +56,9 @@ jobs:
           key: ${{ matrix.os }}-llvm-${{ env.LLVM_VERSION }}-v4
 
       - name: Build
+        timeout-minutes: 30
         run: cmake --build build --config Release --parallel 2
 
       - name: Test
+        timeout-minutes: 15
         run: ctest --test-dir build --build-config Release --label-regex libs-core --output-on-failure
