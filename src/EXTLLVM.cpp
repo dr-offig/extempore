@@ -613,6 +613,33 @@ bool OPTIMIZE_COMPILES = true;
 bool VERIFY_COMPILES = true;
 int OPTIMIZATION_LEVEL = 2;  // Default to O2
 
+// Map from counter-less adhoc names to their full counter-ful names.
+// e.g. "foo_adhoc_W2k4K_native" -> "foo_adhoc_9_W2k4K_native"
+// The xtlang get_native_fptr macro generates names without the counter,
+// but the compiled functions include an adhoc counter in their names.
+static std::unordered_map<std::string, std::string> sAdhocAliases;
+
+static std::string stripAdhocCounter(const std::string& name) {
+    auto pos = name.find("_adhoc_");
+    if (pos == std::string::npos) return "";
+    size_t afterAdhoc = pos + 7;
+    size_t counterEnd = afterAdhoc;
+    while (counterEnd < name.size() && name[counterEnd] >= '0' && name[counterEnd] <= '9') {
+        counterEnd++;
+    }
+    if (counterEnd > afterAdhoc && counterEnd < name.size() && name[counterEnd] == '_') {
+        return name.substr(0, afterAdhoc) + name.substr(counterEnd + 1);
+    }
+    return "";
+}
+
+void registerAdhocAlias(const std::string& fullName) {
+    auto alias = stripAdhocCounter(fullName);
+    if (!alias.empty()) {
+        sAdhocAliases[alias] = fullName;
+    }
+}
+
 // Get function address - main lookup function
 uint64_t getFunctionAddress(const std::string& name) {
     if (!JIT) {
@@ -622,6 +649,13 @@ uint64_t getFunctionAddress(const std::string& name) {
     auto sym = JIT->lookup(name);
     if (!sym) {
         llvm::consumeError(sym.takeError());
+        // Fall back to counter-less adhoc alias lookup
+        auto it = sAdhocAliases.find(name);
+        if (it != sAdhocAliases.end()) {
+            auto sym2 = JIT->lookup(it->second);
+            if (sym2) return sym2->getValue();
+            llvm::consumeError(sym2.takeError());
+        }
         return 0;
     }
     return sym->getValue();

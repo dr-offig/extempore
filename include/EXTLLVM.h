@@ -113,6 +113,7 @@ namespace EXTLLVM
 {
 
 uint64_t getFunctionAddress(const std::string&);
+void registerAdhocAlias(const std::string& fullName);
 void addModule(llvm::Module* m);
 
 // ORC JIT
