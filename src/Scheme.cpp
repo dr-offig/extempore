@@ -57,6 +57,8 @@
 
 #include <inttypes.h>
 
+#include <chrono>
+#include <thread>
 #include <iostream>
 #include <sstream>
 #ifndef _WIN32
@@ -120,9 +122,6 @@
 #include <string.h>
 #include <stdlib.h>
 
-#ifdef _WIN32
-#define atoll _atoi64
-#endif
 /*
 #if USE_STRLWR
 static const char *strlwr(char *s) {
@@ -1672,11 +1671,7 @@ static void treadmill_flip(scheme* sc,pointer a,pointer b)
         std::cout << "TREADMILL: FLIP SPINNING" << std::endl << std::flush;
 #endif
 
-#ifdef _WIN32
         std::this_thread::sleep_for(std::chrono::microseconds(50));
-#else
-        usleep(50);
-#endif
     }
 #ifdef TREADMILL_DEBUG
     std::cout << "TREADMILL: FINISHSED SPINNING - ON WITH THE WORK" << std::endl << std::flush;
@@ -1965,11 +1960,7 @@ static void treadmill_flip(scheme* sc,pointer a,pointer b)
         }catch( ... ) {
             std::cout << "ERROR: SENDING NOTIFICATION TO SCANNER THREAD" << std::endl << std::flush;
         }
-#ifdef _WIN32
         std::this_thread::sleep_for(std::chrono::microseconds(50));
-#else
-        usleep(50);
-#endif
 #ifdef TREADMILL_DEBUG
         std::cout << "SPINNING FLIP WAITING FOR NOTIFICATION" << std::endl << std::flush;
 #endif
@@ -2102,11 +2093,7 @@ static void* treadmill_scanner(void* obj)
 
            }
          sc->mutex->unlock(); // yeild here to let interpreter add greys to the treadmill!!
-#ifdef _WIN32
          std::this_thread::sleep_for(std::chrono::microseconds(500));
-#else
-         usleep(500);
-#endif
          sc->mutex->lock(); // But lock again after sleep!
        }
 #ifdef _WIN32
@@ -5651,7 +5638,7 @@ static void Eval_Cycle(scheme *sc, enum scheme_opcodes op) {
                 std::cout << "PROBLEM HERE B? " << std::endl;
             }
             if(ok) {
-                if(pcd->arg_tests_encoding!=0) {
+                if(pcd->arg_tests_encoding!=0 && n>0) {
                     int i=0;
                     int j;
                     const char *t=pcd->arg_tests_encoding;

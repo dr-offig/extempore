@@ -600,17 +600,6 @@ double frqRatio(double semitones)
     return pow(2.0, (semitones/12.0));
 }
 
-bool file_check(const std::string& filename)
-{
-    FILE* fd = fopen(filename.c_str(),"r");
-    if(fd == NULL){
-        return false;
-    }else{
-        fclose(fd);
-        return true;
-    }
-}
-
 struct dump_stack_frame {
     int op;
     pointer args;

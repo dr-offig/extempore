@@ -125,17 +125,10 @@ CMRC_DECLARE(xtm);
 #include <AppKit/AppKit.h>
 #endif
 
-#ifdef _WIN32
-#define PRINT_ERROR(format, ...)                \
+#define PRINT_ERROR(format, ...)            \
     ascii_error();                   \
-    printf(format , __VA_ARGS__);                       \
+    printf(format, ##__VA_ARGS__);           \
     ascii_normal()
-#else
-#define PRINT_ERROR(format, args...)            \
-    ascii_error();                   \
-    printf(format , ## args);                   \
-    ascii_normal()
-#endif
 
 #include <queue>
 //#include <unistd.h>

@@ -40,14 +40,15 @@
 #include <sstream>
 #include <math.h>
 
+#include <chrono>
+#include <thread>
+
 #ifndef _WIN32
 #include <unistd.h>
 #endif
 #include <stdlib.h>
 
 #ifdef _WIN32
-#include <thread>
-#include <chrono>
 #else
 #include <sys/errno.h>
 #include <sys/types.h>
@@ -504,11 +505,7 @@ namespace extemp {
         //osc->getCallback()(address,typetags,args,(bytes_read - (typetags_length + address_length)),reply,&reply_length,&caller);
         //if(reply_length > 0) sendto(osc->getSocketFD(), reply, reply_length, 0, (struct sockaddr*)osc->getClientAddress(), osc->sizeOfClientAddress());
       }else{
-#ifdef _WIN32
         std::this_thread::sleep_for(std::chrono::microseconds(1000));
-#else
-        usleep(1000);
-#endif
       }
     }
     return NULL;
@@ -941,11 +938,7 @@ namespace extemp {
 
   int OSC::setOSCTimestamp(char* data, double d)
   {
-#ifdef _WIN32
-    uint32_t seconds = (uint32_t) d;
-#else
-    uint32_t seconds = trunc(d);
-#endif
+    uint32_t seconds = static_cast<uint32_t>(d);
 
     double fractional = d - (double) seconds;
     seconds += 3187296000ul; //1543503872;

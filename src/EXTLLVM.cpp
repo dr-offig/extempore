@@ -94,9 +94,7 @@
 #include <math.h>
 #include <BranchPrediction.h>
 
-#ifdef _WIN32
-#include <malloc.h>
-#else
+#ifndef _WIN32
 #include <sys/types.h>
 #endif
 
@@ -123,10 +121,10 @@
 #include <arpa/inet.h>
 #endif
 
-#ifdef _WIN32
 #include <chrono>
 #include <thread>
-#else
+
+#ifndef _WIN32
 #include <unistd.h>
 #endif
 
@@ -138,23 +136,15 @@ std::map<foreign_func, std::string> LLVM_SCHEME_FF_MAP;
 
 EXPORT void* malloc16(size_t Size)
 {
-#ifdef _WIN32
-    return _aligned_malloc(Size, 16);
-#else
-    void* result;
-    if (posix_memalign(&result, 16, Size)) {
+    if (!Size) {
         return nullptr;
     }
-    return result;
-#endif
+    Size = (Size + 15) & ~size_t(15);
+    return std::aligned_alloc(16, Size);
 }
 
 EXPORT void free16(void* Ptr) {
-#ifdef _WIN32
-    _aligned_free(Ptr);
-#else
-    free(Ptr);
-#endif
+    std::free(Ptr);
 }
 
 // Portable conversion from 80-bit extended precision (big-endian) to double.
@@ -908,23 +898,8 @@ EXPORT void* thread_self()
 
 EXPORT int64_t thread_sleep(int64_t Secs, int64_t Nanosecs)
 {
-#ifdef _WIN32
     std::this_thread::sleep_for(std::chrono::seconds(Secs) + std::chrono::nanoseconds(Nanosecs));
     return 0;
-#else
-    timespec a = { Secs, Nanosecs };
-    timespec b;
-    while (true) {
-        auto res(nanosleep(&a ,&b));
-        if (likely(!res)) {
-            return 0;
-        }
-        if (unlikely(errno != EINTR)) {
-            return -1;
-        }
-        a = b;
-    }
-#endif
 }
 
 

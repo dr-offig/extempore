@@ -52,6 +52,9 @@
 #include "SchemeFFI.h"
 #include "BranchPrediction.h"
 
+#include <chrono>
+#include <thread>
+
 #ifdef _WIN32
 #include <Windows.h>
 #endif
@@ -72,10 +75,6 @@
 #include <atomic>
 
 // this is an aribrary maximum
-
-#ifdef _WIN32
-#include <thread>
-#endif
 
 // this functionality is duplicated in EXTThread::setPriority(), but
 // kep here to not mess with the MT audio stuff
@@ -114,23 +113,11 @@ int set_thread_realtime(pthread_t thread, int policy, int priority) {
 }
 #endif
 
-#ifdef _WIN32
-#define isnan(x) ((x) != (x))
-#define isinf(x) (isnan(x-x))
-#endif
-
-#if !defined(__clang__) && !defined(_WIN32)
-#undef isinf
-#undef isfinite
-#undef isnan
-#define isinf(x) __builtin_isinf(x)
-#define isnan(x) __builtin_isnan(x)
-#define isfinite(x) __builtin_finite(x)
-#endif
+#include <cmath>
 
 static inline SAMPLE audio_sanity(SAMPLE x)
 {
-    if (likely(isfinite(x))) {
+    if (likely(std::isfinite(x))) {
         if (unlikely(x < -0.99f)) return -0.99f;
         if (unlikely(x > 0.99f)) return 0.99f;
         return x;
@@ -140,7 +127,7 @@ static inline SAMPLE audio_sanity(SAMPLE x)
 
 static inline float audio_sanity_f(float x)
 {
-    if (likely(isfinite(x))) {
+    if (likely(std::isfinite(x))) {
 #if USE_SSE_AUDIO_SANITY
         _mm_store_ss(&x, _mm_min_ss(_mm_max_ss(_mm_set_ss(x), _mm_set_ss(-0.99f)), _mm_set_ss(0.99f)));
 #else
@@ -182,27 +169,7 @@ uint64_t start_time = 0;
 static std::atomic_int sThreadDoneCount;
 static std::atomic_int_fast64_t sSignalCount;
 
-#ifndef _WIN32
-static struct timespec MT_SLEEP_DURATION = { 0, NANO_SLEEP_DURATION };
-#else
-static LONGLONG MT_SLEEP_DURATION = NANO_SLEEP_DURATION;
-
-static void nanosleep(LONGLONG* Ns, void*)
-{
-    auto timer(CreateWaitableTimer(NULL, TRUE, NULL));
-    if (!timer) {
-        return;
-    }
-    LARGE_INTEGER li;
-    li.QuadPart = -*Ns / 100;
-    if (!SetWaitableTimer(timer, &li, 0, NULL, NULL, FALSE)) {
-        CloseHandle(timer);
-        return;
-    }
-    WaitForSingleObject(timer, INFINITE);
-    CloseHandle(timer);
-}
-#endif
+static const auto MT_SLEEP_DURATION = std::chrono::nanoseconds(NANO_SLEEP_DURATION);
 
 void* audioCallbackMT(void* Args)
 {
@@ -238,7 +205,7 @@ void* audioCallbackMT(void* Args)
         auto closure = *reinterpret_cast<closure_fn_type*>(cache_closure);
         int cnt = 0;
         while(sSignalCount <= lcount) { // wait);
-            nanosleep(&MT_SLEEP_DURATION, nullptr);
+            std::this_thread::sleep_for(MT_SLEEP_DURATION);
             cnt++;
             if (!(cnt%100000)) {
                 printf("Still locked in %d cnt(%" PRId64 ":%" PRId64 ")\n!",idx,lcount,int64_t(sSignalCount));
@@ -303,7 +270,7 @@ void* audioCallbackMTBuf(void* dat) {
       auto closure = *((void(**)(float*,float*,uint64_t,void*)) cache_closure);
       int cnt = 0;
       while (sSignalCount <= lcount) { // wait
-        nanosleep(&MT_SLEEP_DURATION, NULL);
+        std::this_thread::sleep_for(MT_SLEEP_DURATION);
         cnt++;
         if (!(cnt%100000)) {
             printf("Still locked in %d cnt(%" PRId64 ":%" PRId64 ")\n!",idx,lcount, int64_t(sSignalCount));
@@ -416,7 +383,7 @@ int audioCallback(const void* InputBuffer, void* OutputBuffer, unsigned long Fra
             ++sSignalCount;
             int cnt = 0;
             while (sThreadDoneCount != numthreads) {
-                nanosleep(&MT_SLEEP_DURATION ,NULL);
+                std::this_thread::sleep_for(MT_SLEEP_DURATION);
                 ++cnt;
                 if (!(cnt % 100000)) {
                     printf("Locked with threads:%d of %d cnt(%" PRId64 ")!\n", sThreadDoneCount.load(), numthreads,
@@ -460,7 +427,7 @@ int audioCallback(const void* InputBuffer, void* OutputBuffer, unsigned long Fra
             ++sSignalCount;
             int cnt = 0;
             while (sThreadDoneCount != numthreads) {
-                nanosleep(&MT_SLEEP_DURATION ,NULL);
+                std::this_thread::sleep_for(MT_SLEEP_DURATION);
                 ++cnt;
                 if (!(cnt % 100000)) {
                     printf("Locked with threads:%d of %d cnt(%" PRId64 ")!\n", sThreadDoneCount.load(), numthreads,
@@ -483,7 +450,7 @@ int audioCallback(const void* InputBuffer, void* OutputBuffer, unsigned long Fra
         ++sSignalCount;
         int cnt = 0;
         while (sThreadDoneCount != numthreads) {
-            nanosleep(&MT_SLEEP_DURATION ,NULL);
+            std::this_thread::sleep_for(MT_SLEEP_DURATION);
             ++cnt;
             if (!(cnt % 100000)) {
                 printf("Locked with threads:%d of %d cnt(%" PRId64 ")!\n", sThreadDoneCount.load(), numthreads,

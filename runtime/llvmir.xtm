@@ -135,7 +135,8 @@
   (lambda (str)
     (let* ((r1 (car (regex:split str "##")))
            (r2 (impc:ir:get-ptr-depth r1))
-           (r3 (string-append "^([^%]*)%*[a-z]*" (apply string-append (make-list r2 "\\*")) "$")))
+           (stars (if (= r2 0) "" (apply string-append (make-list r2 "\\*"))))
+           (r3 (string-append "^([^%]*)%*[a-z]*" stars "$")))
       ;; (println str r2 "$1")
       (regex:replace r1 r3 "$1"))))
 
@@ -146,17 +147,19 @@
   (lambda (str)
     (let* ((r1 (car (regex:split str "##")))
            (r2 (impc:ir:get-ptr-depth r1))
-           (r3 (string-append "^(.*)" (apply string-append (make-list r2 "\\*")) "$")))
-      ;; (println str r2 "$1")
+           (stars (if (= r2 0) "" (apply string-append (make-list r2 "\\*"))))
+           (r3 (string-append "^(.*)" stars "$")))
       (regex:replace r1 r3 "$1"))))
 
 
 (define impc:ir:get-ptr-depth
   (lambda (t)
     (if (string? t)
-        (string-length (cadr (regex:matched t "([*]*)($|#)")))
+        (let ((m (regex:matched t "([*]*)($|#)")))
+          (if (null? m)
+              0
+              (string-length (cadr m))))
         (let ((slc (impc:ir:str-list-check t)))
-                                        ;(println 't: t 'slc: slc)
           (if (string? slc)
               (impc:ir:get-ptr-depth slc)
               (real->integer (floor (/ (impc:ir:str-list-check slc) *impc:ir:pointer*))))))))
@@ -347,7 +350,6 @@
 
 (define impc:ir:get-type-from-pretty-str
   (lambda (string-type . args)
-    ;; (println 'pretty-string-type-in string-type)
     (let ((res (apply impc:ir:get-type-from-pretty-str-rec string-type args)))
       ;; (println 'pretty-string-type string-type 'to res)
       res)))

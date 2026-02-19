@@ -78,12 +78,6 @@
 #define D_BILLION 1000000000.0
 #define D_MILLION 1000000.0
 
-#ifdef _WIN32
-#define OS_PATH_DELIM '\\'
-#else
-#define OS_PATH_DELIM '/'
-#endif
-
 struct scheme;
 struct cell;
 typedef struct cell* pointer;
@@ -140,7 +134,6 @@ extern std::vector<std::string> ATTRS;
 extern double midi2frq(double pitch);
 extern double frqRatio(double semitones);
 extern void initRand();
-extern bool file_check(const std::string& filename);
 extern void printSchemeCell(scheme* sc, std::stringstream& ss, pointer cell, bool = false, bool = true);
 
 }

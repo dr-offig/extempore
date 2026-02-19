@@ -43,8 +43,10 @@
 #include <string>
 #include "EXTLLVM.h"
 
+#include <chrono>
+#include <thread>
+
 #ifndef _WIN32
-#include <unistd.h>
 #include <signal.h>
 #else
 #undef min
@@ -78,11 +80,7 @@ void* extempore_primary_repl_delayed_connect(void* dat)
     std::string host("localhost");
     std::string primary_name("primary");
     int primary_port = pass_primary_port;
-#ifdef _WIN32
-	Sleep(1000);
-#else
-    sleep(1);
-#endif
+    std::this_thread::sleep_for(std::chrono::seconds(1));
     extemp::SchemeREPL* primary_repl = new extemp::SchemeREPL(primary_name, primary);
     primary_repl->connectToProcessAtHostname(host, primary_port);
     return NULL;
@@ -432,13 +430,7 @@ EXPORT int extempore_init(int argc, char** argv)
 #ifndef SUBSUME_PRIMARY
         while (true) {
           if (XTMMainCallback) { XTMMainCallback(); }
-#ifdef _WIN32
-          Sleep(2000);
-#elif __APPLE__
-          sleep(2);
-#else
-          sleep(2000);
-#endif
+          std::this_thread::sleep_for(std::chrono::seconds(2));
         }
 #else
         primary = new extemp::SchemeProcess(extemp::UNIV::SHARE_DIR, primary_name, primary_port, 0, initexpr);

@@ -1,9 +1,10 @@
 ---
 id: TASK-027
 title: fix Windows AOT compilation hang due to unbound bind-alias
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-02-19 03:31'
+updated_date: '2026-02-19 12:06'
 labels:
   - bug
   - windows
@@ -36,7 +37,13 @@ Relevant CI URL: https://github.com/digego/extempore/actions/runs/22166027469/jo
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 bind-alias is defined and available during Windows AOT compilation of libs/base/base.xtm
-- [ ] #2 AOT compilation of libs/base/base.xtm completes without hanging on Windows
-- [ ] #3 Windows CI job passes on all three platforms (Linux x86_64, macOS aarch64, Windows x86_64)
+- [x] #1 bind-alias is defined and available during Windows AOT compilation of libs/base/base.xtm
+- [x] #2 AOT compilation of libs/base/base.xtm completes without hanging on Windows
+- [x] #3 Windows CI job passes on all three platforms (Linux x86_64, macOS aarch64, Windows x86_64)
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Fixed in two commits: (1) rvukpylz fixed the bind-alias hang by correcting Windows scheduler sleep behaviour. (2) nrylylsq fixed MSVC /O2 optimizer bug with do-while loop in Scheme.cpp dispatch table type checking --- when n=0, the loop ran once and the post-loop if(i<n) check was incorrectly evaluated as true, causing spurious type errors for quit and string-append. Fix: added n>0 guard. Also added eol=lf for .xtm/.scm files and defensive changes in llvmir.xtm. CI run 22180367858 passes on all three platforms.
+<!-- SECTION:NOTES:END -->

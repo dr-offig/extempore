@@ -46,6 +46,9 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+#include <chrono>
+#include <thread>
+
 #ifdef _WIN32
 #include <ws2tcpip.h>
 
@@ -54,21 +57,6 @@
 CMRC_DECLARE(xtm);
 #endif
 
-static void usleep(LONGLONG Us)
-{
-    auto timer(CreateWaitableTimer(NULL, TRUE, NULL));
-    if (!timer) {
-        return;
-    }
-    LARGE_INTEGER li;
-    li.QuadPart = -Us * 10;
-    if (!SetWaitableTimer(timer, &li, 0, NULL, NULL, FALSE)) {
-        CloseHandle(timer);
-        return;
-    }
-    WaitForSingleObject(timer, INFINITE);
-    CloseHandle(timer);
-}
 #else
 #include <sys/socket.h>
 #include <sys/select.h>
@@ -277,11 +265,7 @@ void* SchemeProcess::taskImpl()
 {
     sm_current = this;
     OSC::schemeInit(this);
-#ifdef _WIN32
-    Sleep(1000);
-#else
-    sleep(1); // give time for NSApp etc. to init
-#endif
+    std::this_thread::sleep_for(std::chrono::seconds(1)); // give time for NSApp etc. to init
     while(!m_running) {
     }
 #ifdef DYLIB
@@ -294,11 +278,7 @@ void* SchemeProcess::taskImpl()
     loadFile("runtime/llvmir.xtm", UNIV::SHARE_DIR);
 #endif
     m_libsLoaded = true;
-#ifdef _WIN32
-    Sleep(2000);
-#else
-    sleep(2); // give time for NSApp etc. to init
-#endif
+    std::this_thread::sleep_for(std::chrono::seconds(2)); // give time for NSApp etc. to init
     // only load extempore.xtm in primary process
     if (m_name == "primary") {
         EXTMonitor::ScopedLock lock(m_guard);
@@ -346,7 +326,7 @@ void* SchemeProcess::taskImpl()
     }
     while (likely(m_running)) {
         if (unlikely(m_taskQueue.empty())) {
-            usleep(1000); // 1 ms
+            std::this_thread::sleep_for(std::chrono::microseconds(1000)); // 1 ms
             continue;
         }
         while (likely(!m_taskQueue.empty() && m_running)) {
@@ -469,7 +449,7 @@ void* SchemeProcess::taskImpl()
 void* SchemeProcess::serverImpl()
 {
     while (!m_libsLoaded) {
-        usleep(1000);
+        std::this_thread::sleep_for(std::chrono::microseconds(1000));
     }
     fd_set readFds;
     std::vector<SOCKET> clientSockets;

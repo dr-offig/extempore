@@ -49,6 +49,9 @@
 #include <netdb.h>         /* host to IP resolution       */
 #endif
 
+#include <chrono>
+#include <thread>
+
 #ifndef _WIN32
 #include <unistd.h>
 #endif
@@ -139,11 +142,7 @@ bool SchemeREPL::connectToProcessAtHostname(const std::string& hostname, int por
         return false;
     }
     // wait for main server to start up first time out of the gates.
-#ifdef _WIN32
-    Sleep(1000);
-#else
-    sleep(1);
-#endif
+    std::this_thread::sleep_for(std::chrono::seconds(1));
 
 #ifdef _WIN32
     m_serverIoService = new std::experimental::net::io_context;
