@@ -33,7 +33,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: build/_deps
-          key: ${{ matrix.os }}-llvm-${{ env.LLVM_VERSION }}-v4
+          key: ${{ matrix.os }}-llvm-${{ env.LLVM_VERSION }}-v5
 
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
@@ -41,23 +41,27 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libasound2-dev xorg-dev libglu1-mesa-dev
 
+      - name: Set up MSVC (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
       - name: Configure
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON
 
       - name: Build LLVM
         if: steps.cache-llvm.outputs.cache-hit != 'true'
-        run: cmake --build build --config Release --parallel 2 --target llvm-libs
+        run: cmake --build build --target llvm-libs
 
       - name: Save LLVM cache
         if: steps.cache-llvm.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: build/_deps
-          key: ${{ matrix.os }}-llvm-${{ env.LLVM_VERSION }}-v4
+          key: ${{ matrix.os }}-llvm-${{ env.LLVM_VERSION }}-v5
 
       - name: Build
         timeout-minutes: 30
-        run: cmake --build build --config Release --parallel 2
+        run: cmake --build build --parallel 2
 
       - name: Test
         timeout-minutes: 15

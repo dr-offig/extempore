@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.24)
+cmake_minimum_required(VERSION 3.28)
 project(Extempore VERSION 0.8.9)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -138,7 +138,8 @@ set(LLVM_ENABLE_OCAMLDOC OFF CACHE BOOL "" FORCE)
 
 FetchContent_Declare(LLVM
     URL https://github.com/llvm/llvm-project/releases/download/llvmorg-${DEP_LLVM_VERSION}/llvm-project-${DEP_LLVM_VERSION}.src.tar.xz
-    SOURCE_SUBDIR llvm)
+    SOURCE_SUBDIR llvm
+    EXCLUDE_FROM_ALL)
 
 FetchContent_MakeAvailable(LLVM)
 
