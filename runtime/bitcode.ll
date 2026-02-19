@@ -148,6 +148,129 @@ declare double @clock_clock() nounwind
 declare double @audio_clock_base() nounwind
 declare double @audio_clock_now() nounwind
 
+; Byte-swap functions (OSC, network byte order)
+declare i64 @swap64f(double) nounwind
+declare double @unswap64f(i64) nounwind
+declare i32 @swap32f(float) nounwind
+declare float @unswap32f(i32) nounwind
+declare i64 @swap64i(i64) nounwind
+declare i64 @unswap64i(i64) nounwind
+declare i32 @swap32i(i32) nounwind
+declare i32 @unswap32i(i32) nounwind
+
+; Callback registration
+declare void @xtm_set_main_callback(i8*) nounwind
+declare i32 @register_for_window_events() nounwind
+
+; 16-byte aligned memory
+declare i8* @malloc16(i64) nounwind
+declare void @free16(i8*) nounwind
+
+; Standard C library - math
+declare double @acos(double) nounwind
+declare double @asin(double) nounwind
+declare double @atan(double) nounwind
+declare double @sinh(double) nounwind
+declare double @cosh(double) nounwind
+declare double @tanh(double) nounwind
+declare double @tan(double) nounwind
+declare double @trunc(double) nounwind
+declare double @acosh(double) nounwind
+declare double @asinh(double) nounwind
+declare double @atanh(double) nounwind
+declare double @cbrt(double) nounwind
+declare double @copysign(double, double) nounwind
+declare double @erf(double) nounwind
+declare double @erfc(double) nounwind
+declare double @expm1(double) nounwind
+declare double @fdim(double, double) nounwind
+declare double @fmax(double, double) nounwind
+declare double @fmin(double, double) nounwind
+declare double @fmod(double, double) nounwind
+declare double @hypot(double, double) nounwind
+declare double @lgamma(double) nounwind
+declare double @log1p(double) nounwind
+declare double @nan(i8*) nounwind
+declare double @nextafter(double, double) nounwind
+declare double @remainder(double, double) nounwind
+declare double @scalbn(double, i32) nounwind
+declare double @tgamma(double) nounwind
+declare float @acosf(float) nounwind
+declare float @asinf(float) nounwind
+declare float @atanf(float) nounwind
+declare float @coshf(float) nounwind
+declare float @acoshf(float) nounwind
+declare float @asinhf(float) nounwind
+declare float @atanhf(float) nounwind
+declare float @cbrtf(float) nounwind
+declare float @copysignf(float, float) nounwind
+declare float @erff(float) nounwind
+declare float @erfcf(float) nounwind
+declare float @expm1f(float) nounwind
+declare float @fdimf(float, float) nounwind
+declare float @fmaxf(float, float) nounwind
+declare float @fminf(float, float) nounwind
+declare float @fmodf(float, float) nounwind
+declare float @hypotf(float, float) nounwind
+declare float @lgammaf(float) nounwind
+declare float @log1pf(float) nounwind
+declare float @log2f(float) nounwind
+declare float @nanf(i8*) nounwind
+declare float @nextafterf(float, float) nounwind
+declare float @remainderf(float, float) nounwind
+declare float @scalbnf(float, i32) nounwind
+declare float @tgammaf(float) nounwind
+declare i32 @abs(i32) nounwind
+declare i64 @llrint(double) nounwind
+declare i64 @llrintf(float) nounwind
+declare i64 @llround(double) nounwind
+declare i64 @llroundf(float) nounwind
+
+; Standard C library - string/memory
+declare i8* @strdup(i8*) nounwind
+declare i8* @strrchr(i8*, i32) nounwind
+declare i8* @strpbrk(i8*, i8*) nounwind
+declare i8* @strtok(i8*, i8*) nounwind
+declare i8* @strerror(i32) nounwind
+declare i64 @strcspn(i8*, i8*) nounwind
+declare i64 @strspn(i8*, i8*) nounwind
+declare i8* @memmove(i8*, i8*, i64) nounwind
+declare i8* @memchr(i8*, i32, i64) nounwind
+
+; Standard C library - conversion
+declare double @atof(i8*) nounwind
+declare i32 @atoi(i8*) nounwind
+declare i64 @atol(i8*) nounwind
+
+; Standard C library - file I/O
+declare i8* @fopen(i8*, i8*) nounwind
+declare i32 @fclose(i8*) nounwind
+declare i64 @fread(i8*, i64, i64, i8*) nounwind
+declare i64 @fwrite(i8*, i64, i64, i8*) nounwind
+declare i8* @fgets(i8*, i32, i8*) nounwind
+declare i32 @fputc(i32, i8*) nounwind
+declare i32 @fputs(i8*, i8*) nounwind
+declare i32 @fgetc(i8*) nounwind
+declare i32 @feof(i8*) nounwind
+declare i32 @ferror(i8*) nounwind
+declare i32 @fflush(i8*) nounwind
+declare i32 @fseek(i8*, i64, i32) nounwind
+declare i64 @ftell(i8*) nounwind
+declare void @rewind(i8*) nounwind
+declare i32 @fileno(i8*) nounwind
+
+; Standard C library - process/system
+declare void @abort() nounwind
+declare void @exit(i32) nounwind
+declare i32 @system(i8*) nounwind
+declare i8* @getenv(i8*) nounwind
+declare i32 @setenv(i8*, i8*, i32) nounwind
+declare i32 @raise(i32) nounwind
+declare i32 @rand() nounwind
+declare i8* @calloc(i64, i64) nounwind
+declare i8* @dlsym(i8*, i8*) nounwind
+declare i32 @puts(i8*) nounwind
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; SCHEME STUFF
 
