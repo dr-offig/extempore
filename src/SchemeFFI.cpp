@@ -249,14 +249,88 @@ static void registerExternalLibFunction(const std::string& name) {
     sExternalLibFunctionNames.insert(name);
 }
 
+// Extract names of types, functions, and globals that are declared or defined
+// in the given IR string.  This is used to avoid emitting duplicate preamble
+// entries when the user IR (e.g. an AOT-compiled .ll file) already contains them.
+// We scan line-by-line, which is O(n) in the IR size and done at most once per
+// jitCompile call.
+struct IRNames {
+    std::unordered_set<std::string> types;
+    std::unordered_set<std::string> funcs;
+    std::unordered_set<std::string> globals;
+};
+
+static IRNames extractIRNames(const std::string& irString) {
+    IRNames names;
+    size_t pos = 0;
+    while (pos < irString.size()) {
+        size_t lineEnd = irString.find('\n', pos);
+        if (lineEnd == std::string::npos) lineEnd = irString.size();
+        size_t lineLen = lineEnd - pos;
+
+        // Use a string_view bounded to this line to avoid O(n^2) scans.
+        std::string_view line(irString.data() + pos, lineLen);
+
+        // "%Name = type " at start of line
+        if (line.size() > 0 && line[0] == '%') {
+            auto eq = line.find(" = type ");
+            if (eq != std::string_view::npos) {
+                names.types.emplace(line.substr(1, eq - 1));
+            }
+        }
+        // "declare ... @name(" or "define ... @name("
+        else if ((line.size() >= 7 && line.compare(0, 7, "declare") == 0) ||
+                 (line.size() >= 6 && line.compare(0, 6, "define") == 0)) {
+            auto atPos = line.find('@');
+            if (atPos != std::string_view::npos) {
+                auto nameEnd = line.find('(', atPos);
+                if (nameEnd != std::string_view::npos) {
+                    names.funcs.emplace(line.substr(atPos + 1, nameEnd - atPos - 1));
+                }
+            }
+        }
+        // "@name = ..." at start of line (global definition)
+        else if (line.size() > 0 && line[0] == '@') {
+            auto eq = line.find(" = ");
+            if (eq != std::string_view::npos) {
+                names.globals.emplace(line.substr(1, eq - 1));
+            }
+        }
+
+        pos = lineEnd + 1;
+    }
+    return names;
+}
+
 // Build the preamble string from the three maps (types, then functions, then globals).
+// When irString is provided, skip any declarations already present in it to avoid
+// "invalid redefinition" errors (e.g. when loading AOT-compiled .ll files that
+// contain their own declarations for bind-lib functions).
 // NOTE: caller must hold sTemplateMutex.
-static std::string buildPreamble() {
+static std::string buildPreamble(const std::string& irString = "") {
     std::string preamble;
     preamble.reserve(sTypeDefs.size() * 80 + sFuncDecls.size() * 120 + sGlobalDecls.size() * 60);
-    for (const auto& [_, val] : sTypeDefs) preamble += val;
-    for (const auto& [_, val] : sFuncDecls) preamble += val;
-    for (const auto& [_, val] : sGlobalDecls) preamble += val;
+
+    IRNames existing;
+    if (!irString.empty()) {
+        existing = extractIRNames(irString);
+    }
+
+    for (const auto& [name, val] : sTypeDefs) {
+        if (existing.types.count(name)) continue;
+        preamble += val;
+    }
+
+    for (const auto& [name, val] : sFuncDecls) {
+        if (existing.funcs.count(name)) continue;
+        preamble += val;
+    }
+
+    for (const auto& [name, val] : sGlobalDecls) {
+        if (existing.globals.count(name)) continue;
+        preamble += val;
+    }
+
     return preamble;
 }
 
@@ -366,9 +440,7 @@ static bool initializeTemplateModule(llvm::LLVMContext& ctx) {
         sTemplateGlobalNames.insert(global.getName().str());
     }
     for (const auto& func : templateModule->functions()) {
-        if (!func.isDeclaration() && !func.isIntrinsic()) {
-            sTemplateGlobalNames.insert(func.getName().str());
-        }
+        sTemplateGlobalNames.insert(func.getName().str());
     }
 
     llvm::raw_string_ostream bitstream(sTemplateBitcode);
@@ -444,24 +516,63 @@ static llvm::Module* jitCompile(const std::string& irString)
         }
 
         // Step 3: Parse user IR with type definitions prepended.
-        std::string fullIR = buildPreamble() + irString;
+        std::string fullIR = buildPreamble(irString) + irString;
         SMDiagnostic diag;
         if (parseAssemblyInto(MemoryBufferRef(fullIR, "<user>"), baseModule.get(), nullptr, diag)) {
             std::string errstr;
             raw_string_ostream ss(errstr);
             diag.print("LLVM IR", ss);
-            std::cerr << "LLVM IR parse failed for " << modname << ": " << ss.str() << std::endl;
-            std::cerr << "First 1000 chars of IR:\n" << fullIR.substr(0, 1000) << std::endl;
+            printf("%s\n", ss.str().c_str());
             return;
         }
 
-        // Step 4: Check if this is a bind-lib declaration (register C calling convention).
+        // Step 4: Capture new declarations into sFuncDecls so subsequent
+        // compilations can reference them. This handles both individual bind-lib
+        // declarations (small IR) and AOT-cached .ll files (large IR).
+        // We capture before optimization because LLVM may drop unused declarations.
         bool isBindLibDeclaration = (irString.find("declare") == 0 && irString.size() < 500);
-        if (isBindLibDeclaration) {
+        {
+            std::lock_guard<std::mutex> lock(sTemplateMutex);
             for (const auto& func : baseModule->functions()) {
-                if (func.isDeclaration() && !func.isIntrinsic()) {
-                    registerExternalLibFunction(func.getName().str());
+                if (!func.isDeclaration() || func.isIntrinsic()) continue;
+
+                std::string name = func.getName().str();
+                if (sTemplateGlobalNames.count(name)) continue;
+                if (sFuncDecls.count(name)) continue;
+
+                // For bind-lib declarations, register as external library function
+                // so the JIT uses C calling convention.
+                if (isBindLibDeclaration) {
+                    registerExternalLibFunction(name);
                 }
+
+                std::string declStr;
+                raw_string_ostream ss(declStr);
+                ss << "declare ";
+                if (func.getCallingConv() == CallingConv::Fast) {
+                    ss << "fastcc ";
+                } else if (func.getCallingConv() == CallingConv::C) {
+                    ss << "ccc ";
+                }
+                auto* funcType = func.getFunctionType();
+                funcType->getReturnType()->print(ss, false, true);
+                ss << " @" << name << "(";
+                bool first = true;
+                for (unsigned i = 0; i < funcType->getNumParams(); ++i) {
+                    if (!first) ss << ", ";
+                    first = false;
+                    funcType->getParamType(i)->print(ss, false, true);
+                }
+                if (funcType->isVarArg()) {
+                    if (!first) ss << ", ";
+                    ss << "...";
+                }
+                ss << ")";
+                if (func.hasFnAttribute(Attribute::NoUnwind)) {
+                    ss << " nounwind";
+                }
+                ss << "\n";
+                sFuncDecls.emplace(name, ss.str());
             }
         }
 
@@ -572,7 +683,11 @@ static llvm::Module* jitCompile(const std::string& irString)
         } else {
             modulePtr = metadataModule.get();
             EXTLLVM::addModule(metadataModule.get());
-            
+
+            for (const auto& name : symbolNames) {
+                EXTLLVM::registerAdhocAlias(name);
+            }
+
             // Add declarations for newly defined symbols to the IR preamble maps.
             // This allows subsequent compilations to reference these symbols.
             // We also need to add any new type definitions from the module.
@@ -610,7 +725,7 @@ static llvm::Module* jitCompile(const std::string& irString)
                     }
                 }
                 
-                // Now add function declarations.
+                // Now add function declarations for newly defined functions.
                 for (const auto& func : metadataModule->functions()) {
                     if (func.isDeclaration()) continue;
 
