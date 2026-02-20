@@ -43,6 +43,7 @@
 
 #include <vector>
 #include <string>
+#include <string_view>
 #include <memory>
 
 #include "llvm/ExecutionEngine/Orc/ThreadSafeModule.h"
@@ -112,8 +113,8 @@ namespace extemp
 namespace EXTLLVM
 {
 
-uint64_t getFunctionAddress(const std::string&);
-void registerAdhocAlias(const std::string& fullName);
+uint64_t getFunctionAddress(std::string_view name);
+void registerAdhocAlias(std::string_view fullName);
 void addModule(llvm::Module* m);
 
 // ORC JIT
