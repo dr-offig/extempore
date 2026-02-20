@@ -5895,9 +5895,7 @@ int scheme_init_custom_alloc(scheme *sc, func_alloc malloc, func_dealloc free) {
 
     // setup treadmill stuff
     sc->mutex = new extemp::EXTMutex("treadmill_mutex");
-    sc->mutex->init();
     sc->Treadmill_Guard = new extemp::EXTMonitor("treadmill_guard");
-    sc->Treadmill_Guard->init();
 
     sc->treadmill_flip_active = false;
     sc->treadmill_scanner_finished = false;

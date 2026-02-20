@@ -841,7 +841,6 @@ EXPORT double audio_clock_now()
 EXPORT void* mutex_create()
 {
     auto mutex(new EXTMutex);
-    mutex->init();
     return mutex;
 }
 

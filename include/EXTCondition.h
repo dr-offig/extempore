@@ -50,9 +50,6 @@ public:
     EXTCondition() {
     }
 
-    void init() {}
-    void destroy() {}
-
     void wait(EXTMutex* Mutex) {
         std::unique_lock<std::recursive_mutex> lock(Mutex->m_mutex);
         m_cond.wait(lock);

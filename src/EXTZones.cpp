@@ -68,7 +68,6 @@ EXPORT void* llvm_zone_malloc(llvm_zone_t* zone, uint64_t size)
 {
     static std::unique_ptr<extemp::EXTMutex> alloc_mutex = []() {
         std::unique_ptr<extemp::EXTMutex> m(new extemp::EXTMutex("alloc mutex"));
-        m->init();
         return m;
     }();
     extemp::EXTMutex::ScopedLock lock(*alloc_mutex);

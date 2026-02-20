@@ -71,7 +71,6 @@ SchemeREPL::SchemeREPL(const std::string& Title, SchemeProcess* Process): m_titl
 	printf("INFO:");
 	ascii_default();
 	std::cout << " starting " << m_title << " process..." << std::endl;
-    m_writeLock.init();
     sm_repls[m_title] = this;
 }
 

@@ -187,7 +187,6 @@ bool SchemeProcess::start(bool subsume)
     if (subsume) {
       m_threadTask.setSubsume();
     }
-    m_guard.init();
     if (!UNIV::BATCH_MODE) {
         m_threadServer.start();
     }

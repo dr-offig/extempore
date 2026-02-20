@@ -64,9 +64,6 @@ public:
     EXTMutex(const std::string& Name = std::string()): m_name(Name) {
     }
 
-    void init(bool Recursive = true) {}
-    void destroy() {}
-
     void lock() { m_mutex.lock(); }
     void unlock() { m_mutex.unlock(); }
     bool try_lock() { return m_mutex.try_lock(); }

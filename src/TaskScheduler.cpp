@@ -47,8 +47,6 @@ TaskScheduler TaskScheduler::sm_instance;
 TaskScheduler::TaskScheduler(): m_numFrames(0), m_queueThread(TaskScheduler::queueThread, this, "scheduler"),
     m_guard("task_scheduler_guard"), m_queueMutex("taskQueue")
 {
-    m_guard.init();
-    m_queueMutex.init();
 }
 
 static uint64_t AUDIO_DEVICE_START_OFFSET = 0;
