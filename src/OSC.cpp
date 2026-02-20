@@ -647,7 +647,7 @@ namespace extemp {
 
     fd_set rfd; //open read sockets (man select for more info)
     std::vector<int> client_sockets;
-    std::map<int,std::vector<char>*> data_map;
+    std::map<int,std::vector<char>> data_map;
     std::map<int,bool> data_packet;
     std::map<int,bool> data_active_escape;
     FD_ZERO(&rfd); //zero out open sockets
@@ -692,7 +692,7 @@ namespace extemp {
         if(res >= highest_fd) highest_fd = res+1;
         FD_SET(res, &rfd); //add new socket to the FD_SET
         client_sockets.push_back(res);
-        data_map[res] = new std::vector<char>;
+        data_map[res] = std::vector<char>();
         std::string outstr ("OSC connected over TCP.");
         write(res, outstr.c_str(), outstr.length()+1);
         continue;
@@ -707,8 +707,7 @@ namespace extemp {
             res = read(sock, buf, BUFLEN);
             if(res == 0) { //close the socket
               FD_CLR(sock, &rfd);
-              delete(data_map[sock]);
-              data_map[sock] = 0;
+              data_map.erase(sock);
               ascii_warning();
               std::cout << "Closed TCP-OSC Socket" << std::endl;
               ascii_normal();
@@ -744,19 +743,19 @@ namespace extemp {
             // OK from here we can assume that we are
             // in a valid OSC SLIP packet and can start
             // loading up data_map[sock]
-            int result = parse_osc_slip_data(data_map[sock],bufptr,res,data_active_escape[sock]);
+            int result = parse_osc_slip_data(&data_map[sock],bufptr,res,data_active_escape[sock]);
 
             if(result == 2) { // complete osc packet
               //printf("full osc packet\n");
-              process_osc_data(scm, osc, client_address, data_map[sock]->data(), data_map[sock]->size());
-              data_map[sock]->clear();
+              process_osc_data(scm, osc, client_address, data_map[sock].data(), data_map[sock].size());
+              data_map[sock].clear();
               data_active_escape[sock] = false;
               data_packet[sock] = false;
             }else if(result == -1){ // bad osc packet
               ascii_error();
               printf("Bad SLIP OSC Packet!!!!!\n");
               ascii_normal();
-              data_map[sock]->clear();
+              data_map[sock].clear();
               data_active_escape[sock] = false;
               data_packet[sock] = false;
             }else if(result == 0 || result == 1) { // more reading to do
@@ -766,7 +765,7 @@ namespace extemp {
               ascii_error();
               printf("Unknown return type from parse_osc_slip_data!!!!!\n");
               ascii_normal();
-              data_map[sock]->clear();
+              data_map[sock].clear();
               data_active_escape[sock] = false;
               data_packet[sock] = false;
             }
@@ -794,8 +793,7 @@ namespace extemp {
         continue;
       }
       FD_CLR(sock, &rfd);
-      delete(data_map[sock]);
-      data_map[sock] = 0;
+      data_map.erase(sock);
       std::cout << "CLOSE CLIENT-SOCKET" << std::endl;
       close(sock);
       std::cout << "DONE-CLOSING_CLIENT" << std::endl;
