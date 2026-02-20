@@ -94,7 +94,9 @@
 #include <math.h>
 #include <BranchPrediction.h>
 
-#ifndef _WIN32
+#ifdef _WIN32
+#include <malloc.h>
+#else
 #include <sys/types.h>
 #endif
 
@@ -139,12 +141,20 @@ EXPORT void* malloc16(size_t Size)
     if (!Size) {
         return nullptr;
     }
+#ifdef _WIN32
+    return _aligned_malloc(Size, 16);
+#else
     Size = (Size + 15) & ~size_t(15);
     return std::aligned_alloc(16, Size);
+#endif
 }
 
 EXPORT void free16(void* Ptr) {
+#ifdef _WIN32
+    _aligned_free(Ptr);
+#else
     std::free(Ptr);
+#endif
 }
 
 // Portable conversion from 80-bit extended precision (big-endian) to double.
