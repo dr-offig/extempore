@@ -37,7 +37,7 @@
 #define OSC_H
 
 #include "UNIV.h"
-#include <stdio.h>
+#include <cstdio>
 #include <iostream>
 #include <stdexcept>
 #include <map>

@@ -38,7 +38,7 @@
 #include <string>
 #include <iomanip>
 #include <sstream>
-#include <math.h>
+#include <cmath>
 
 #include <chrono>
 #include <thread>
@@ -46,7 +46,7 @@
 #ifndef _WIN32
 #include <unistd.h>
 #endif
-#include <stdlib.h>
+#include <cstdlib>
 
 #ifdef _WIN32
 #else

@@ -36,7 +36,7 @@
 #ifndef UNIV_H
 #define UNIV_H
 
-#include <stdint.h>
+#include <cstdint>
 #include <BranchPrediction.h>
 
 #include <string>

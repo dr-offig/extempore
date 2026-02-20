@@ -41,7 +41,7 @@
 #include <iosfwd>
 #include <iomanip>
 #include <stdexcept>
-#include <errno.h>
+#include <cerrno>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -68,7 +68,7 @@ static int closesocket(int Socket) {
     return close(Socket);
 }
 #endif
-#include <stdlib.h>
+#include <cstdlib>
 #include "UNIV.h"
 
 #define EXT_INITEXPR_BUFLEN 1024

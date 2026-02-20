@@ -35,8 +35,8 @@
 
 #include <time.h>
 #include <iostream>
-#include <string.h>
-#include <inttypes.h>
+#include <cstring>
+#include <cinttypes>
 #include <regex>
 
 // x86 SSE intrinsics for audio_sanity_f optimization
@@ -70,8 +70,8 @@
 #include <libkern/OSAtomic.h>
 #endif
 
-#include <stdlib.h>
-#include <math.h>
+#include <cstdlib>
+#include <cmath>
 #include <atomic>
 
 // this is an aribrary maximum

@@ -55,7 +55,7 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-#include <inttypes.h>
+#include <cinttypes>
 
 #include <chrono>
 #include <thread>
@@ -83,12 +83,12 @@
 # include "dynload.h"
 #endif
 #if USE_MATH
-# include <math.h>
+# include <cmath>
 #endif
-#include <limits.h>
-#include <float.h>
-#include <ctype.h>
-#include <stddef.h>
+#include <climits>
+#include <cfloat>
+#include <cctype>
+#include <cstddef>
 
 #include "UNIV.h"
 #include "SchemeProcess.h"
@@ -119,8 +119,8 @@
 
 #define banner "Extempore"
 
-#include <string.h>
-#include <stdlib.h>
+#include <cstring>
+#include <cstdlib>
 
 /*
 #if USE_STRLWR

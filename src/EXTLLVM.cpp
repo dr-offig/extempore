@@ -80,7 +80,7 @@
 #include <set>
 #include <cmath>
 #include <cstdlib>
-#include "stdarg.h"
+#include <cstdarg>
 
 #include <EXTLLVM.h>
 #include <EXTClosureAddressTable.h>
@@ -91,7 +91,7 @@
 #include <Scheme.h>
 #include <pcre.h>
 #include <OSC.h>
-#include <math.h>
+#include <cmath>
 #include <BranchPrediction.h>
 
 #ifdef _WIN32

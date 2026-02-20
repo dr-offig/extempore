@@ -34,9 +34,9 @@
  */
 
 #include "UNIV.h"
-#include <math.h>
-#include <stdlib.h>
-#include <stdio.h>
+#include <cmath>
+#include <cstdlib>
+#include <cstdio>
 #include <string>
 #include <sstream>
 #include <iosfwd>

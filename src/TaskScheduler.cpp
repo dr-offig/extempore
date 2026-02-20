@@ -36,7 +36,7 @@
 #include "TaskScheduler.h"
 #include "EXTMonitor.h"
 #include "AudioDevice.h"
-#include <math.h>
+#include <cmath>
 #include <thread>
 #include <chrono>
 

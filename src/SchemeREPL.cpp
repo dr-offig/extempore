@@ -37,7 +37,7 @@
 #include "EXTMutex.h"
 #include "UNIV.h"
 
-#include <stdio.h>         /* Basic I/O routines          */
+#include <cstdio>
 
 #ifdef _WIN32
 // nothing
@@ -57,8 +57,8 @@
 #endif
 #include <iostream>
 #include <sstream>
-#include <string.h>
-#include <errno.h>
+#include <cstring>
+#include <cerrno>
 
 namespace extemp {
 
