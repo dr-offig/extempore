@@ -32,8 +32,11 @@ jobs:
         id: cache-llvm
         uses: actions/cache/restore@v4
         with:
-          path: build/_deps
-          key: ${{ matrix.os }}-llvm-${{ env.LLVM_VERSION }}-v5
+          path: |
+            build/_deps
+            build/.ninja_log
+            build/.ninja_deps
+          key: ${{ matrix.os }}-llvm-${{ env.LLVM_VERSION }}-v6
 
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
@@ -56,8 +59,11 @@ jobs:
         if: steps.cache-llvm.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
-          path: build/_deps
-          key: ${{ matrix.os }}-llvm-${{ env.LLVM_VERSION }}-v5
+          path: |
+            build/_deps
+            build/.ninja_log
+            build/.ninja_deps
+          key: ${{ matrix.os }}-llvm-${{ env.LLVM_VERSION }}-v6
 
       - name: Build
         timeout-minutes: 30
