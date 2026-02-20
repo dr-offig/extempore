@@ -83,7 +83,7 @@ void* extempore_primary_repl_delayed_connect(void* dat)
     std::this_thread::sleep_for(std::chrono::seconds(1));
     extemp::SchemeREPL* primary_repl = new extemp::SchemeREPL(primary_name, primary);
     primary_repl->connectToProcessAtHostname(host, primary_port);
-    return NULL;
+    return nullptr;
 }
 
 // WARNING EVIL WINDOWS TERMINATION CODE!
@@ -168,7 +168,7 @@ EXPORT int extempore_init(int argc, char** argv)
     int primary_port = 7099;
     int utility_port = 7098;
 #ifndef _WIN32
-    // redirect stderr to NULL
+    // redirect stderr to nullptr
     freopen("/dev/null", "w", stderr);
 
         // signal handlers for OSX/Linux

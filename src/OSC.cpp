@@ -237,8 +237,8 @@ uint32_t unswap32i(uint32_t a)
 namespace extemp {
 
   std::map<scheme*, OSC*> OSC::SCHEME_MAP;
-  //OSC* OSC::singleton = NULL;
-  //scheme* OSC::sc = NULL;
+  //OSC* OSC::singleton = nullptr;
+  //scheme* OSC::sc = nullptr;
 
   int get_message_length(std::string& typetags, char* args)
   {
@@ -328,7 +328,7 @@ namespace extemp {
       }
     }
     ss << ")";
-    if(_sc != NULL) {
+    if(_sc != nullptr) {
 #ifdef _OSC_DEBUG_
       std::cout << "SEND SCHEME: " << ss.str() << std::endl;
 #endif
@@ -396,7 +396,7 @@ namespace extemp {
       }
     }
     ss << ")";
-    if(scm != NULL) {
+    if(scm != nullptr) {
 #ifdef _OSC_DEBUG_
       std::cout << "SEND SCHEME: " << ss.str() << std::endl;
 #endif
@@ -428,12 +428,12 @@ namespace extemp {
       std::string netaddy(inet_ntoa(osc->getClientAddress()->sin_addr));
       int netport = (int) ntohs(osc->getClientAddress()->sin_port);
 #endif
-      if(osc->getNativeUDP() != NULL) {       
+      if(osc->getNativeUDP() != nullptr) {       
         char* args = osc->getMessageData();
         int (*nativeUDP) (char*,int) = osc->getNativeUDP();
         nativeUDP(args,bytes_read);
       }
-      if(bytes_read > -1 && osc->getNativeUDP() == NULL) {
+      if(bytes_read > -1 && osc->getNativeUDP() == nullptr) {
         //printf("udp packet size(%lld)\n",bytes_read);
         //std::cout << "OSC from client port: " << osc->getClientAddress() << " " << osc->getAddress() <<  std::endl;
         char* args = osc->getMessageData();
@@ -473,7 +473,7 @@ namespace extemp {
             res = OSC::getOSCString(args+pos,&typetags);
             used += res;
             pos += res;
-            if(osc->getNativeOSC() == NULL) {
+            if(osc->getNativeOSC() == nullptr) {
               int ret_from_call = send_scheme_call(osc->sc,osc->fname,timestamp,address,typetags,netaddy,netport,args+pos);
               if(ret_from_call < 0) break;
               else pos += size-used; //ret_from_call;
@@ -484,7 +484,7 @@ namespace extemp {
             }
           }
         }else{
-          if(osc->getNativeOSC() == NULL) {
+          if(osc->getNativeOSC() == nullptr) {
             pos += OSC::getOSCString(args+pos,&typetags);
             pos += send_scheme_call(osc->sc,osc->fname,0.0,address,typetags,netaddy,netport,args+pos);
           }else{
@@ -508,7 +508,7 @@ namespace extemp {
         std::this_thread::sleep_for(std::chrono::microseconds(1000));
       }
     }
-    return NULL;
+    return nullptr;
   }
 
 #ifdef _WIN32
@@ -516,7 +516,7 @@ namespace extemp {
   {
     // seed rng for process
     // UNIV::initRand();
-    return NULL;
+    return nullptr;
   }
 #else
 
@@ -554,7 +554,7 @@ namespace extemp {
 
   int process_osc_data(SchemeProcess* scm, OSC* osc, struct sockaddr_in client_address, char* args, long length) {
     //printf("Processing osc data %lld:%p\n",length,args);
-    if(length > 0 && args != NULL) {
+    if(length > 0 && args != nullptr) {
       // process the OSC data (should be its own method)
       double timestamp;
       long oscpos = 0;
@@ -591,7 +591,7 @@ namespace extemp {
           res = OSC::getOSCString(args+oscpos,&typetags);
           used += res;
           oscpos += res;
-          if(osc->getNativeOSC() == NULL) {
+          if(osc->getNativeOSC() == nullptr) {
             int ret_from_call = send_scheme_process_call(scm,osc->fname,timestamp,address,typetags,args+oscpos);
             if(ret_from_call < 0) break;
             else oscpos += size-used; //ret_from_call;
@@ -602,7 +602,7 @@ namespace extemp {
           }
         }
       }else{
-        if(osc->getNativeOSC() == NULL) {
+        if(osc->getNativeOSC() == nullptr) {
           oscpos += OSC::getOSCString(args+oscpos,&typetags);
           oscpos += send_scheme_process_call(scm,osc->fname,0.0,address,typetags,args+oscpos);
         }else{
@@ -664,7 +664,7 @@ namespace extemp {
       timeval pause;
       pause.tv_sec = 1;
       pause.tv_usec = 0;
-      int res = select(highest_fd, &c_rfd, NULL, NULL, &pause);
+      int res = select(highest_fd, &c_rfd, nullptr, nullptr, &pause);
       if(res >= 0) {
       }else{
         struct stat buf;
@@ -803,11 +803,11 @@ namespace extemp {
     }
     if(close(socket_fd)) {
       std::cerr << "SchemeProcess Error: Error closing server socket" << std::endl;
-      perror(NULL);
+      perror(nullptr);
     }
     delete sop;
     std::cout << "Exiting server thread" << std::endl;
-    return NULL;
+    return nullptr;
   }
 #endif
 
@@ -1256,14 +1256,14 @@ namespace extemp {
     if(pair_cddr(args) != _sc->NIL && is_cptr(pair_caddr(args))) {
       if (pair_cdddr(args) != _sc->NIL && pair_cadddr(args) == _sc->T) {
         osc->setNativeUDP( (int(*)(char*,int)) cptr_value(pair_caddr(args)));
-        osc->setNativeOSC(NULL);
+        osc->setNativeOSC(nullptr);
       }else{        
         osc->setNativeOSC( (int(*)(char*,char*,char*,int)) cptr_value(pair_caddr(args)));
-        osc->setNativeUDP(NULL);
+        osc->setNativeUDP(nullptr);
       }
     }else{
-      osc->setNativeOSC(NULL);
-      osc->setNativeUDP(NULL);      
+      osc->setNativeOSC(nullptr);
+      osc->setNativeUDP(nullptr);      
     }
 
     // setup server port

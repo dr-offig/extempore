@@ -153,7 +153,7 @@ namespace extemp
 {
 
 AudioDevice AudioDevice::SINGLETON;
-// AudioDevice* AudioDevice::SINGLETON = NULL;
+// AudioDevice* AudioDevice::SINGLETON = nullptr;
 
 double AudioDevice::REALTIME = 0.0;
 double AudioDevice::CLOCKBASE = 0.0;
@@ -277,7 +277,7 @@ void* audioCallbackMTBuf(void* dat) {
         }
       } // spin
       lcount++;
-      cache_wrapper(zone, reinterpret_cast<void*>(closure), inbuf, outbuf, UNIV::DEVICE_TIME, NULL);
+      cache_wrapper(zone, reinterpret_cast<void*>(closure), inbuf, outbuf, UNIV::DEVICE_TIME, nullptr);
       extemp::EXTZones::llvm_zone_reset(zone);
       ++sThreadDoneCount;
     }

@@ -55,7 +55,7 @@
 namespace extemp
 {
 
-thread_local EXTThread* EXTThread::sm_current = 0;
+thread_local EXTThread* EXTThread::sm_current = nullptr;
 
 EXTThread::~EXTThread()
 {

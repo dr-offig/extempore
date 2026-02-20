@@ -89,7 +89,7 @@ namespace EXTZones {
 
 namespace extemp {
 
-thread_local SchemeProcess* SchemeProcess::sm_current = 0;
+thread_local SchemeProcess* SchemeProcess::sm_current = nullptr;
 const char* SchemeProcess::sm_banner = "\n"
         "##########################################\n"
         "##                                      ##\n"
@@ -459,7 +459,7 @@ void* SchemeProcess::serverImpl()
     while (m_running) {
         fd_set curReadFds;
         FD_COPY(&readFds, &curReadFds);
-        int res(select(numFds, &curReadFds, NULL, NULL, nullptr));
+        int res(select(numFds, &curReadFds, nullptr, nullptr, nullptr));
         if (unlikely(res < 0)) { // assumes only one failure
             auto iter(clientSockets.begin());
             for (; iter != clientSockets.end(); ++iter) {
@@ -574,7 +574,7 @@ void* SchemeProcess::serverImpl()
     }
     if (closesocket(m_serverSocket)) {
         std::cerr << "SchemeProcess Error: Error closing server socket" << std::endl;
-        perror(NULL);
+        perror(nullptr);
     }
     std::cout << "Exiting server thread" << std::endl;
     return this;
