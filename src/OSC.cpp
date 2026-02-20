@@ -1143,36 +1143,36 @@ namespace extemp {
 
     pointer arg = pair_cadddr(args);
     int tmpsize = 1024;
-    char* tmp = (char*) malloc(tmpsize);
-    //char tmp[1024];
-    ptr = tmp;
+    std::vector<char> tmp(tmpsize);
+    char* tmpPtr = tmp.data();
+    ptr = tmpPtr;
     int lgth = 0;
-    processArgs(arg,&tmp,&ptr,&lgth,typetags,_sc);
+    processArgs(arg,&tmpPtr,&ptr,&lgth,typetags,_sc);
 
-    char* message = (char*) malloc(1024+tmpsize);
-    ptr = message;
+    std::vector<char> message(1024 + tmpsize);
+    ptr = message.data();
     ret = OSC::setOSCString(ptr, &address);
     length += ret; ptr += ret;
     ret = OSC::setOSCString(ptr, &typetags);
     length += ret; ptr += ret;
-    memcpy(ptr, tmp, lgth);
+    memcpy(ptr, tmp.data(), lgth);
     length += lgth;
 #ifdef _OSC_DEBUG_
-    std::cout << "SENDING MSG: " << message << "  of size: " << length << std::endl;
+    std::cout << "SENDING MSG: " << message.data() << "  of size: " << length << std::endl;
 #endif
 
 #ifdef _WIN32
     int err = 0;
     if(OSC::I(_sc)->send_from_serverfd) {
-      err = fd->send_to(std::experimental::net::buffer(message, length), sa);
+      err = fd->send_to(std::experimental::net::buffer(message.data(), length), sa);
     }else{
       std::experimental::net::io_context service;
       std::experimental::net::ip::udp::socket socket(service);
       socket.open(std::experimental::net::ip::udp::v4());
-      socket.send_to(std::experimental::net::buffer(message, length), sa);
+      socket.send_to(std::experimental::net::buffer(message.data(), length), sa);
     }
 #else
-    int err = sendto(fd, message, length, 0, (struct sockaddr*)&sa, sizeof(sa));
+    int err = sendto(fd, message.data(), length, 0, (struct sockaddr*)&sa, sizeof(sa));
     if(!OSC::I(_sc)->send_from_serverfd) close(fd);
 #endif
     if(err < 0)
@@ -1187,9 +1187,6 @@ namespace extemp {
         }
 
       }
-
-    free(tmp);
-    free(message);
 
     delete t->getArg();
     return;
