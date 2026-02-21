@@ -10622,20 +10622,19 @@ xtlang's `let' syntax is the same as Scheme"
           (let ((sres (regex:type-split (symbol->string symname) ":")))
             (set! symname (string->symbol (car sres)))
             (set! types (cons (cons symname (string->symbol (cadr sres))) types))))
-      ;; (print-full symname 'types: types 'e: expr 'args: args)
-      `(let* ((newname (impc:ti:run ',symname
-                                    '(let ((,symname ,expr)) ,symname)
-                                    ,zone-size
-                                    ,poly
-                                    #f
-                                    ,@(if (null? types)
-                                          '()
-                                          (map (lambda (k) (list 'quote k)) types)))))
-         ;; (impc:ti:initialize-closure-with-new-zone (symbol->string ',symname)
-         ;;                                           *impc:default-zone-size*)
-         ;; (impc:ti:create-scheme-wrapper (symbol->string ',symname)))))))
-         (impc:ti:initialize-closure-with-new-zone newname *impc:default-zone-size*)
-         (impc:ti:create-scheme-wrapper newname)))))
+      (let ((base-symname-str (symbol->string symname)))
+        ;; (print-full symname 'types: types 'e: expr 'args: args)
+        `(let* ((newname (impc:ti:run ',symname
+                                      '(let ((,symname ,expr)) ,symname)
+                                      ,zone-size
+                                      ,poly
+                                      #f
+                                      ,@(if (null? types)
+                                            '()
+                                            (map (lambda (k) (list 'quote k)) types)))))
+           (impc:ti:initialize-closure-with-new-zone newname *impc:default-zone-size*)
+           (impc:ti:create-scheme-wrapper newname)
+           (impc:ti:update-dsp-closure-if-registered ,base-symname-str newname))))))
 
 (define-macro (bind-closure . args)
   ;; if aot and func already exists then bomb out
