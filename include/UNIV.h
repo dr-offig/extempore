@@ -67,7 +67,7 @@
 #endif
 
 #if __GNUC__
-#if __x86_64__ || __ppc64__
+#if __x86_64__ || __ppc64__ || __aarch64__
 #define TARGET_64BIT
 #else
 #define TARGET_32BIT
