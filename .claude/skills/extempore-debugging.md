@@ -183,6 +183,28 @@ timeout 120 ./build/extempore --noaudio --batch \
 Test labels: `libs-core`, `libs-external`, `examples-audio`, `examples-core`,
 `examples-graphics`. Defined in `extras/cmake/tests.cmake`.
 
+### Examples as tests
+
+Examples are registered as tests via the `extempore_add_example_as_test` macro in
+`extras/cmake/tests.cmake`. They run with `--batch` (which implies `--noaudio`)
+using `sys:load-then-quit`:
+
+```cmake
+extempore_add_example_as_test(examples/core/audio_101.xtm 10 examples-audio)
+```
+
+This translates to:
+
+```bash
+extempore --batch "(sys:load-then-quit \"examples/core/audio_101.xtm\" 10)"
+```
+
+Note: because `--batch` implies `--noaudio`, example tests verify that the code
+**compiles** but do not exercise the audio callback path. An example can pass as
+a test but fail interactively if the issue is audio-specific (e.g. `dsp:set!`
+registration, hot-swap). To test with audio enabled, use `--eval` instead of
+`--batch`.
+
 ## Capturing audio output to a file (headless/SSH)
 
 `--batch` implies `--noaudio`, so you can't capture real audio output that way.
