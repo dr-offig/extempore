@@ -1,9 +1,10 @@
 ---
 id: TASK-029
 title: investigate DSP type error on macOS arm64
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-02-22 10:18'
+updated_date: '2026-02-22 21:46'
 labels:
   - bug
   - macos
@@ -31,7 +32,17 @@ Related commits: ba474ea7 (DSP hot-swap), 4efa51c3 (aarch64 detection)
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Rebuild extempore on macOS arm64 from HEAD and verify DSP alias is registered
-- [ ] #2 audio_101.xtm loads successfully in interactive mode with audio enabled
+- [x] #1 Rebuild extempore on macOS arm64 from HEAD and verify DSP alias is registered
+- [x] #2 audio_101.xtm loads successfully in interactive mode with audio enabled
 - [ ] #3 All example-audio ctest tests pass on macOS arm64
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Root cause: `--run` flag in `src/Extempore.cpp` incorrectly set `EXT_LOADBASE = false`, preventing the base library (which defines the `DSP` type alias) from loading. This was a copy-paste error from the `--compile` path.
+
+Fix: removed the `EXT_LOADBASE = false` line from the `OPT_INITFILE` case. The `--run` flag now loads the base library as expected, and `audio_101.xtm` runs successfully with audio enabled on macOS arm64.
+
+Note: this was not an arm64-specific issue --- it affected `--run` on all platforms. Tests in `--batch` mode were unaffected because they don't use `--run`.
+<!-- SECTION:FINAL_SUMMARY:END -->

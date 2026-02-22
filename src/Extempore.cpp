@@ -235,8 +235,7 @@ EXPORT int extempore_init(int argc, char** argv)
                         str.replace(start_pos, from.length(), to);
                         start_pos += to.length();
                     }
-					extemp::UNIV::EXT_LOADBASE = false; // never load base when compiling
-                    initexpr = std::string("(sys:load \"") + str + std::string("\")");
+	                    initexpr = std::string("(sys:load \"") + str + std::string("\")");
                 }
                 break;
             case OPT_NOBASE:
