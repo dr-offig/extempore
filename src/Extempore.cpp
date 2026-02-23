@@ -47,6 +47,7 @@
 #include <thread>
 
 #ifndef _WIN32
+#include "LinenoiseREPL.h"
 #include <signal.h>
 #else
 #undef min
@@ -124,6 +125,7 @@ enum { OPT_COMPILE_STR, OPT_SHAREDIR, OPT_NOBASE, OPT_SAMPLERATE, OPT_FRAMES,
        OPT_DEVICE_NAME, OPT_IN_DEVICE_NAME,
        OPT_PRT_DEVICES, OPT_REALTIME, OPT_ARCH, OPT_CPU, OPT_ATTR,
        OPT_LATENCY, OPT_LEVEL,
+       OPT_REPL,
        OPT_HELP
      };
 
@@ -155,6 +157,7 @@ CSimpleOptA::SOption g_rgOptions[] = {
     { OPT_CPU,            "--cpu",           SO_REQ_SEP    },
     { OPT_ATTR,           "--attr",          SO_MULTI      },
     { OPT_LEVEL,          "--opt-level",     SO_REQ_SEP    },
+    { OPT_REPL,           "--repl",          SO_NONE       },
     { OPT_HELP,           "--help",          SO_NONE       },
     SO_END_OF_OPTIONS
 };
@@ -167,6 +170,7 @@ EXPORT int extempore_init(int argc, char** argv)
     std::string utility_name("utility");
     int primary_port = 7099;
     int utility_port = 7098;
+    bool repl_mode = false;
 #ifndef _WIN32
     // redirect stderr to nullptr
     freopen("/dev/null", "w", stderr);
@@ -307,6 +311,14 @@ EXPORT int extempore_init(int argc, char** argv)
             case OPT_LEVEL:
                 extemp::EXTLLVM::OPTIMIZATION_LEVEL = atoi(args.OptionArg());
                 break;
+            case OPT_REPL:
+#ifndef _WIN32
+                repl_mode = true;
+#else
+                std::cout << "--repl is not supported on Windows" << std::endl;
+                return 1;
+#endif
+                break;
             case OPT_HELP:
             default:
                 std::cout << "Extempore's command line options: " << std::endl;
@@ -334,6 +346,7 @@ EXPORT int extempore_init(int argc, char** argv)
                 std::cout << "             --cpu: the target cpu [current host]" << std::endl;
                 std::cout << "            --attr: additional target attributes (allows multiple)" << std::endl;
 				std::cout << "         --compile: compiles xtm file to native executable" << std::endl;
+                std::cout << "            --repl: start an interactive REPL (Linux/macOS only)" << std::endl;
                 std::cout << "   --print-devices: print the available audio devices to console" << std::endl;
                 std::_Exit(0);
             }
@@ -438,6 +451,15 @@ EXPORT int extempore_init(int argc, char** argv)
         extemp::EXTThread* replthread = new extemp::EXTThread(extempore_primary_repl_delayed_connect,primary);
         pass_primary_port = primary_port;
         replthread->start();
+
+#ifndef _WIN32
+        if (repl_mode) {
+            auto* repl_args = new linenoise_repl_args{host, primary_port};
+            auto* repl_thread = new extemp::EXTThread(linenoise_repl, repl_args, "linenoise_repl");
+            repl_thread->start();
+        }
+#endif
+
         // start the primary process running on this thread (i.e. process thread 0)
         primary->start(true); // this will not return
 #endif // end SUBSUME_PRIMARY

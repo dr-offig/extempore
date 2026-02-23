@@ -364,6 +364,15 @@ void* SchemeProcess::taskImpl()
                         scheme_load_string(m_scheme, (const char*) evalString->c_str(), now,
                                 now + task.getMaxDuration());
                         if (unlikely(m_scheme->retcode)) { //scheme error
+                            if (write_reply) {
+                                std::string err(m_schemeOutportString);
+                                if (!err.empty()) {
+                                    send(returnSocket, err.c_str(), int(err.length() + 1), 0);
+                                } else {
+                                    const char* fallback = "error";
+                                    send(returnSocket, fallback, int(strlen(fallback) + 1), 0);
+                                }
+                            }
                             resetOutportString();
                         } else {
                             if (m_banner) {

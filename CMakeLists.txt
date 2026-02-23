@@ -77,6 +77,15 @@ add_library(pcre STATIC
     src/pcre/pcre_tables.c)
 target_compile_definitions(pcre PRIVATE -DHAVE_CONFIG_H)
 
+############
+# linenoise #
+############
+
+if(UNIX)
+    add_library(linenoise STATIC src/linenoise/linenoise.c)
+    target_include_directories(linenoise PRIVATE src/linenoise)
+endif()
+
 #############
 # portaudio #
 #############
@@ -180,7 +189,8 @@ set(EXTEMPORE_SOURCES
     src/SchemeProcess.cpp
     src/SchemeREPL.cpp
     src/TaskScheduler.cpp
-    src/UNIV.cpp)
+    src/UNIV.cpp
+    src/LinenoiseREPL.cpp)
 
 if(EXT_DYLIB)
     include(${CMAKE_CURRENT_SOURCE_DIR}/CMakeRC.cmake)
@@ -231,7 +241,7 @@ if(UNIX)
         -Woverloaded-virtual
         -Wno-unused-result)
     set_source_files_properties(src/Scheme.cpp PROPERTIES COMPILE_FLAGS -Wno-switch)
-    target_link_libraries(extempore PRIVATE pthread)
+    target_link_libraries(extempore PRIVATE pthread linenoise)
 endif()
 
 if(WIN32)

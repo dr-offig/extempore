@@ -86,7 +86,8 @@ NOTE: this project uses GitHub Actions (in particular the
 cmake --build . --target aot        # AOT compile stdlib (faster startup)
 cmake --build . --target clean_aot  # rebuild AOT cache
 cmake --build . --target xtmdoc     # generate docs
-./extempore --noaudio               # run REPL without audio
+./extempore --noaudio               # run without audio
+./extempore --repl                  # interactive REPL (Linux/macOS only)
 ```
 
 ## Evaluating extempore code
