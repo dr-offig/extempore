@@ -24,7 +24,7 @@
     (glfwSetErrorCallback (convert (get_native_fptr glfw_error_callback)))
     (glfw_init_and_create_interaction_window width height)))
 
-(sys:load "libs/external/gl/gl-objects.xtm")
+(sys:load "libs/contrib/gl/gl-objects.xtm")
 (sys:load "libs/external/gstreamer.xtm")
 
 (bind-val vao VAO* (VAO_create_ss_quad))

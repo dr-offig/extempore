@@ -56,7 +56,7 @@
           win)
         (glfw_init_and_create_interaction_window WIDTH HEIGHT))))
 
-(sys:load "libs/external/graphics-pipeline.xtm")
+(sys:load "libs/contrib/graphics-pipeline.xtm")
 
 
 (bind-func range_limit

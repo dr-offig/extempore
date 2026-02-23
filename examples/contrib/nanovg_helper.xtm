@@ -16,7 +16,7 @@
     (glfwSetErrorCallback (convert (get_native_fptr glfw_error_callback)))
     (glfw_init_and_create_interaction_window (convert width) (convert height))))
 
-(sys:load "libs/external/nanovg.xtm")
+(sys:load "libs/contrib/nanovg.xtm")
 (sys:load "libs/contrib/nanovg_helper.xtm")
 (nvg_init)
 

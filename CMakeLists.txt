@@ -7,7 +7,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 option(ASSETS "download multimedia assets (approx 500MB)" OFF)
 option(BUILD_TESTS "build test targets (including examples)" ON)
 option(EXTERNAL_SHLIBS_AUDIO "download & build audio-related external library dependencies" ON)
-option(EXTERNAL_SHLIBS_GRAPHICS "download & build graphics-related external library dependencies" OFF)
+option(EXTERNAL_SHLIBS_GRAPHICS "WebGPU graphics (GLFW, wgpu-native, stb_image)" OFF)
+option(EXTERNAL_SHLIBS_GRAPHICS_OPENGL "legacy OpenGL graphics (nanovg, assimp)" OFF)
 option(EXT_DYLIB "build extempore as a dynamic library" OFF)
 option(JACK "use the Jack Portaudio backend (see BUILDING.md)" OFF)
 
@@ -33,6 +34,7 @@ endif()
 if(EXT_DYLIB)
     set(EXTERNAL_SHLIBS_AUDIO OFF)
     set(EXTERNAL_SHLIBS_GRAPHICS OFF)
+    set(EXTERNAL_SHLIBS_GRAPHICS_OPENGL OFF)
     message(STATUS "Building Extempore as a library without external dependencies")
 endif()
 
@@ -58,6 +60,7 @@ set(DEP_SNDFILE_COMMIT "ae64caf9b5946d365971c550875000342e763de6")
 set(DEP_NANOVG_COMMIT "3c60175fcc2e5fe305b04355cdce35d499c80310")
 set(DEP_STB_COMMIT "152a250a702bf28951bb0220d63bc0c99830c498")
 set(DEP_GLFW_VERSION "3.4")
+set(DEP_WGPU_VERSION "27.0.4.0")
 set(DEP_ASSIMP_VERSION "5.4.3")
 
 ########
@@ -321,22 +324,25 @@ set(AOT_EXTERNAL_AUDIO_LIBS
     "libs/external/instruments_ext.xtm"
     "libs/external/portmidi.xtm")
 
+set(AOT_EXTERNAL_GRAPHICS_LIBS
+    "libs/external/stb_image.xtm"
+    "libs/external/glfw3.xtm"
+    "libs/external/webgpu.xtm")
+
 if(DEFINED ENV{EXTEMPORE_FORCE_GL_GETPROCADDRESS})
     set(GL_BIND_METHOD getprocaddress)
 else()
     set(GL_BIND_METHOD directbind)
 endif()
 
-set(AOT_EXTERNAL_GRAPHICS_LIBS
-    "libs/external/stb_image.xtm"
-    "libs/external/glfw3.xtm"
-    "libs/external/gl/glcore-${GL_BIND_METHOD}.xtm"
-    "libs/external/gl/gl-objects.xtm"
-    "libs/external/gl/gl-objects2.xtm"
-    "libs/external/nanovg.xtm"
-    "libs/external/gl/glcompat-${GL_BIND_METHOD}.xtm"
-    "libs/external/graphics-pipeline.xtm"
-    "libs/external/assimp.xtm")
+set(AOT_EXTERNAL_GRAPHICS_OPENGL_LIBS
+    "libs/contrib/gl/glcore-${GL_BIND_METHOD}.xtm"
+    "libs/contrib/gl/gl-objects.xtm"
+    "libs/contrib/gl/gl-objects2.xtm"
+    "libs/contrib/nanovg.xtm"
+    "libs/contrib/gl/glcompat-${GL_BIND_METHOD}.xtm"
+    "libs/contrib/graphics-pipeline.xtm"
+    "libs/contrib/assimp.xtm")
 
 # AOT compilation with proper per-library dependencies
 if(APPLE)
@@ -412,20 +418,32 @@ if(EXTERNAL_SHLIBS_AUDIO)
     aotcompile_lib(libs/external/portmidi.xtm audio base)
 endif()
 
-# External graphics libs
+# External graphics libs (WebGPU)
 if(EXTERNAL_SHLIBS_GRAPHICS)
     add_custom_target(aot_external_graphics)
     set_target_properties(aot_external_graphics PROPERTIES FOLDER AOT)
     add_dependencies(aot_external_graphics extempore external_shlibs_graphics)
     aotcompile_lib(libs/external/stb_image.xtm graphics base)
     aotcompile_lib(libs/external/glfw3.xtm graphics base)
-    aotcompile_lib(libs/external/gl/glcore-${GL_BIND_METHOD}.xtm graphics base)
-    aotcompile_lib(libs/external/gl/gl-objects.xtm graphics base math glcore-${GL_BIND_METHOD} stb_image)
-    aotcompile_lib(libs/external/gl/gl-objects2.xtm graphics base glcore-${GL_BIND_METHOD} stb_image)
-    aotcompile_lib(libs/external/graphics-pipeline.xtm graphics base math glcore-${GL_BIND_METHOD} stb_image gl-objects2)
-    aotcompile_lib(libs/external/nanovg.xtm graphics base glcore-${GL_BIND_METHOD})
-    aotcompile_lib(libs/external/assimp.xtm graphics base stb_image graphics-pipeline)
-    aotcompile_lib(libs/external/gl/glcompat-${GL_BIND_METHOD}.xtm graphics base)
+    aotcompile_lib(libs/external/webgpu.xtm graphics base glfw3)
+endif()
+
+# External graphics libs (legacy OpenGL)
+if(EXTERNAL_SHLIBS_GRAPHICS_OPENGL)
+    add_custom_target(aot_external_graphics_opengl)
+    set_target_properties(aot_external_graphics_opengl PROPERTIES FOLDER AOT)
+    add_dependencies(aot_external_graphics_opengl extempore external_shlibs_graphics_opengl)
+    if(NOT EXTERNAL_SHLIBS_GRAPHICS)
+        aotcompile_lib(libs/external/stb_image.xtm graphics_opengl base)
+        aotcompile_lib(libs/external/glfw3.xtm graphics_opengl base)
+    endif()
+    aotcompile_lib(libs/contrib/gl/glcore-${GL_BIND_METHOD}.xtm graphics_opengl base)
+    aotcompile_lib(libs/contrib/gl/gl-objects.xtm graphics_opengl base math glcore-${GL_BIND_METHOD} stb_image)
+    aotcompile_lib(libs/contrib/gl/gl-objects2.xtm graphics_opengl base glcore-${GL_BIND_METHOD} stb_image)
+    aotcompile_lib(libs/contrib/graphics-pipeline.xtm graphics_opengl base math glcore-${GL_BIND_METHOD} stb_image gl-objects2)
+    aotcompile_lib(libs/contrib/nanovg.xtm graphics_opengl base glcore-${GL_BIND_METHOD})
+    aotcompile_lib(libs/contrib/assimp.xtm graphics_opengl base stb_image graphics-pipeline)
+    aotcompile_lib(libs/contrib/gl/glcompat-${GL_BIND_METHOD}.xtm graphics_opengl base)
 endif()
 
 add_custom_target(clean_aot
@@ -444,7 +462,7 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/extras/cmake/tests.cmake)
 
 add_custom_target(xtmdoc
     COMMAND extempore --port 17095
-        --eval "(begin (sys:load \"libs/core/audio_dsp.xtm\") (sys:load \"libs/core/instruments.xtm\") (sys:load \"libs/core/math.xtm\") (sys:load \"libs/base/base.xtm\") (sys:load \"libs/external/fft.xtm\") (sys:load \"libs/external/gl.xtm\") (sys:load \"libs/external/glfw3.xtm\") (sys:load \"libs/external/instruments_ext.xtm\") (sys:load \"libs/external/nanovg.xtm\") (sys:load \"libs/external/sndfile.xtm\") (sys:load \"libs/external/stb_image.xtm\") (xtmdoc-export-caches-to-json \"/tmp/xtmdoc.json\" #f) (quit 0))"
+        --eval "(begin (sys:load \"libs/core/audio_dsp.xtm\") (sys:load \"libs/core/instruments.xtm\") (sys:load \"libs/core/math.xtm\") (sys:load \"libs/base/base.xtm\") (sys:load \"libs/external/fft.xtm\") (sys:load \"libs/external/glfw3.xtm\") (sys:load \"libs/external/instruments_ext.xtm\") (sys:load \"libs/external/sndfile.xtm\") (sys:load \"libs/external/stb_image.xtm\") (sys:load \"libs/external/webgpu.xtm\") (xtmdoc-export-caches-to-json \"/tmp/xtmdoc.json\" #f) (quit 0))"
     COMMENT "Generating xtmdoc output in /tmp/xtmdoc.json"
     VERBATIM)
 add_dependencies(xtmdoc extempore)

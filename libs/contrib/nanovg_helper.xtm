@@ -15,9 +15,9 @@
 (define *xtmlib-nanovg_helper-loaded* #f)
 
 (impc:aot:suppress-aot-do
- (sys:load "libs/external/nanovg.xtm"))
+ (sys:load "libs/contrib/nanovg.xtm"))
 (impc:aot:insert-forms
- (sys:load "libs/external/nanovg.xtm" 'quiet))
+ (sys:load "libs/contrib/nanovg.xtm" 'quiet))
 
 (impc:aot:insert-header "xtmnanovg_helper")
 

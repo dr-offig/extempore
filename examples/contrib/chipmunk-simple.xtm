@@ -1,5 +1,5 @@
 (sys:load "libs/external/glfw3.xtm")
-(sys:load "libs/external/nanovg.xtm")
+(sys:load "libs/contrib/nanovg.xtm")
 (sys:load "libs/contrib/libchipmunk.xtm")
 
 (bind-val space cpSpace* (cpSpaceNew))

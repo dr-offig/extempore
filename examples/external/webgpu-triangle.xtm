@@ -1,0 +1,72 @@
+;;; webgpu-triangle.xtm -- WebGPU hello triangle
+
+;; Author: Ben Swift
+;; Keywords: extempore
+
+;;; Commentary:
+
+;; Minimal WebGPU example: a coloured triangle using wgpu-native.
+;; Run interactively or with:
+;;   ./extempore --batch '(sys:load-then-quit "examples/external/webgpu-triangle.xtm" 10)'
+
+;;; Code:
+
+(sys:load "libs/external/webgpu.xtm")
+
+(bind-val TRIANGLE_WGSL i8*
+"@vertex
+fn vs_main(@builtin(vertex_index) idx: u32) -> @builtin(position) vec4f {
+    var pos = array<vec2f, 3>(
+        vec2f( 0.0,  0.5),
+        vec2f(-0.5, -0.5),
+        vec2f( 0.5, -0.5)
+    );
+    return vec4f(pos[idx], 0.0, 1.0);
+}
+
+@fragment
+fn fs_main() -> @location(0) vec4f {
+    return vec4f(0.3, 0.7, 1.0, 1.0);
+}")
+
+(bind-val wgpu_window GLFWwindow* null)
+(bind-val wgpu_instance WGPUInstance* null)
+(bind-val wgpu_surface WGPUSurface* null)
+(bind-val wgpu_adapter WGPUAdapter* null)
+(bind-val wgpu_device WGPUDevice* null)
+(bind-val wgpu_queue WGPUQueue* null)
+(bind-val wgpu_format i32 0)
+(bind-val wgpu_pipeline WGPURenderPipeline* null)
+
+(bind-func webgpu_triangle_init
+  (lambda ()
+    (set! wgpu_window (glfw_init_and_create_webgpu_window 800 600))
+    (set! wgpu_instance (wgpuCreateInstance null))
+    (set! wgpu_surface (xtm_wgpu_create_surface wgpu_instance wgpu_window))
+    (set! wgpu_adapter (xtm_wgpu_request_adapter wgpu_instance wgpu_surface))
+    (set! wgpu_device (xtm_wgpu_request_device wgpu_instance wgpu_adapter))
+    (set! wgpu_queue (wgpuDeviceGetQueue wgpu_device))
+    (set! wgpu_format (xtm_wgpu_surface_format wgpu_surface wgpu_adapter))
+    (xtm_wgpu_configure_surface wgpu_surface wgpu_device wgpu_format 800 600)
+    (let ((shader (xtm_wgpu_create_shader wgpu_device TRIANGLE_WGSL)))
+      (set! wgpu_pipeline
+            (xtm_wgpu_create_pipeline wgpu_device shader wgpu_format
+                                       "vs_main" "fs_main"))
+      (wgpuShaderModuleRelease shader))
+    (println "WebGPU triangle initialised")
+    void))
+
+(webgpu_triangle_init)
+
+(bind-func webgpu_triangle_draw_loop
+  (lambda (time:i64 delta_t:double)
+    (glfwPollEvents)
+    (if (= (glfwWindowShouldClose wgpu_window) 0)
+        (begin
+          (wgpu_draw_frame wgpu_surface wgpu_device wgpu_queue
+                           wgpu_pipeline 0.05 0.05 0.05)
+          (let ((next_time (+ time (convert (* 44100. delta_t)))))
+            (callback next_time webgpu_triangle_draw_loop next_time delta_t)))
+        (println "WebGPU window closed"))))
+
+(webgpu_triangle_draw_loop (now) (/ 1.0 60.0))

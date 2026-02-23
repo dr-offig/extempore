@@ -57,9 +57,9 @@
 (define glctx (gl:make-ctx ":0.0" fullscreen 0.0 0.0 width height))
 
 (sys:load "libs/core/math.xtm")
-(sys:load "libs/external/gl.xtm")
-(sys:load "libs/external/graphics-pipeline.xtm")
-(sys:load "libs/external/assimp.xtm")
+(sys:load "libs/contrib/gl.xtm")
+(sys:load "libs/contrib/graphics-pipeline.xtm")
+(sys:load "libs/contrib/assimp.xtm")
 
 (bind-val simpleshader i32 (create_shader_xtm simple-vert-xtm simple-frag))
 (bind-val shadowshader i32 (create_shader_xtm light-and-shade-vert-xtm light-and-shade-frag))

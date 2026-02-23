@@ -17,10 +17,10 @@
 (bind-val height i32 600)
 (bind-val window GLFWwindow*
   (glfw_init_and_create_interaction_window (convert width) (convert height)))
-(sys:load "libs/external/nanovg.xtm")
+(sys:load "libs/contrib/nanovg.xtm")
 (bind-val vg NVGcontext* (nvg_create_context))
 (bind-val pixel_ratio float (glfw_get_pixel_ratio window))
-(sys:load "libs/external/datavis.xtm")
+(sys:load "libs/contrib/datavis.xtm")
 (call-as-xtlang
  (nvgCreateFont vg "default" "/Library/Fonts/Arial.ttf")
  (nvgFontFace vg "default"))

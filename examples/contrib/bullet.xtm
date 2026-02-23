@@ -27,11 +27,11 @@
 (bind-val window GLFWwindow*
   (glfw_init_and_create_interaction_compatibility_window width height))
 
-(sys:load "libs/external/glcompat.xtm")
+(sys:load "libs/contrib/glcompat.xtm")
 
 (sys:load "libs/external/horde3d.xtm")
 (sys:load "libs/external/bullet.xtm")
-;; (sys:load "libs/external/gl.xtm")
+;; (sys:load "libs/contrib/gl.xtm")
 
 (bind-func degToRad
   (lambda (f:float)

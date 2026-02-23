@@ -21,7 +21,7 @@
 ;; setup opengl
 (define *gl-ctx* (gl:make-ctx ":0.0" fullscreen 0.0 0.0 width height))
 
-(sys:load "libs/external/graphics-pipeline.xtm")
+(sys:load "libs/contrib/graphics-pipeline.xtm")
 (sys:load "libs/external/openvg.xtm")
 (sys:load "libs/contrib/kinect2.xtm")
 

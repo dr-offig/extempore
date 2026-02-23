@@ -31,7 +31,7 @@
 
 (define pr2 (gl:make-ctx ":0.0" #f 0.0 0.0 1024.0 768.0))
 
-(sys:load "libs/external/gl.xtm")
+(sys:load "libs/contrib/gl.xtm")
 
 (bind-type fluidcube <i64,double,double,double,double*,double*,double*,double*,double*,double*,double*,double*>)
 

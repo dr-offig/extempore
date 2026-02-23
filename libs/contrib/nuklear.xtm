@@ -20,11 +20,11 @@
 (impc:aot:suppress-aot-do
  (sys:load "libs/base/base.xtm")
  (sys:load "libs/external/glfw3.xtm")
- (sys:load "libs/external/gl.xtm"))
+ (sys:load "libs/contrib/gl.xtm"))
 (impc:aot:insert-forms
  (sys:load "libs/base/base.xtm" 'quiet)
  (sys:load "libs/external/glfw3.xtm" 'quiet)
- (sys:load "libs/external/gl.xtm" 'quiet))
+ (sys:load "libs/contrib/gl.xtm" 'quiet))
 
 (impc:aot:insert-header "xtmnuklear")
 

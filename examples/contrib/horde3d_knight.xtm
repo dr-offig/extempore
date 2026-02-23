@@ -20,7 +20,7 @@
 
 ;; first load libfile
 (sys:load "libs/external/glfw3.xtm")
-(sys:load "libs/external/graphics-pipeline.xtm")
+(sys:load "libs/contrib/graphics-pipeline.xtm")
 (sys:load "libs/external/horde3d.xtm")
 
 ;; set path to Horde resources

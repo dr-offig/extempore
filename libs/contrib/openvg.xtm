@@ -21,8 +21,8 @@
 (sys:load-preload-check 'openvg)
 
 (impc:aot:suppress-aot-do
- (sys:load "libs/external/soil.xtm"))
-(impc:aot:insert-forms (sys:load "libs/external/soil.xtm" 'quiet))
+ (sys:load "libs/contrib/soil.xtm"))
+(impc:aot:insert-forms (sys:load "libs/contrib/soil.xtm" 'quiet))
 
 (impc:aot:insert-header "xtmopenvg")
 
