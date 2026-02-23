@@ -7586,7 +7586,10 @@ Continue executing `body' forms until `test-expression' returns #f"
            (ftypeA (map impc:ir:get-type-from-str
                       (let ((ags (impc:ti:get-closure-arg-types (symbol->string (caddr ast)))))
                         (if ags ags '()))))
-           (ftype (if (null? ftypeA) cbType (cons 213 ftypeA))))
+           (ftype (cond ((not (null? ftypeA)) (cons 213 ftypeA))
+                        ((and (not (null? cbType)) (pair? (car cbType)))
+                         (car cbType))
+                        (else cbType))))
       (if *impc:ti:print-sub-checks* (println 'ftype:> 'ast: ast 'type: ftype))
       (impc:ti:type-check (cadr ast) vars kts *impc:ir:si64*)
       (if (null? ftype)
