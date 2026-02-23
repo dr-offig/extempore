@@ -54,6 +54,20 @@ impc:compiler:flush-jit-compilation-queue
 - `--noaudio`: Disable audio (required for headless/CI testing)
 - `--batch "expr"`: Batch mode (no server, single process, no audio); exits only
   if the expression calls `(quit ...)`. Implies `--noaudio`.
+- `--eval "expr"`: Evaluate expression at startup but keep full server running
+  (utility + primary processes, TCP server on port 7099).
+
+### --batch vs --eval differences
+
+`--batch` creates a single SchemeProcess with no TCP server. `--eval` starts the
+full two-process setup (utility + primary) with TCP server, then evaluates the
+expression as a `LOCAL_PROCESS_STRING` task.
+
+**Bugs may reproduce in one mode but not the other.** The xtlang compiler's type
+inference state can differ because `--eval` has a utility process that also loads
+the base library into shared C++ statics (`sTypeDefinitions`, `sGlobalMap`).
+Always try both modes when investigating user-reported bugs, since users
+typically work interactively (equivalent to `--eval` / TCP eval).
 
 ## Symbol tracking
 
@@ -123,6 +137,22 @@ automatically exit --- it hangs waiting for further input. Use `timeout` when
 running batch tests. The `sys:load-then-quit` helper is designed to exit after a
 timeout, but compilation errors can prevent it from reaching the quit call.
 
+### Bug doesn't reproduce in --batch mode
+
+`--batch` runs a single process with no TCP server or utility process. `--eval`
+and interactive TCP eval run two processes (utility + primary) that share C++
+statics like `sTypeDefinitions` and `sGlobalMap`. This means compiler bugs can
+appear in one mode but not the other.
+
+When a user reports a bug from interactive use:
+
+1. First try `--batch` --- if it reproduces, great, it's the simplest to debug
+2. If not, try `--eval` with the same expression
+3. If not, start extempore normally and send the expression via TCP with
+   `printf '(expr)\r\n' | nc -w 10 localhost 7099`
+4. If the bug is specifically about redefinition or accumulated state, send
+   multiple expressions sequentially via TCP to simulate an interactive session
+
 ## Debugging commands
 
 ```scheme
@@ -138,6 +168,64 @@ timeout, but compilation errors can prevent it from reaching the quit call.
 ;; Print specific function
 (llvm:print-function "prefix")
 ```
+
+## Sending expressions via TCP
+
+Extempore's TCP protocol requires `\r\n` (CRLF) termination. Expressions are
+read until `\r\n` is found (`src/SchemeProcess.cpp:541`). Without CRLF, the
+expression is buffered but never evaluated.
+
+```bash
+# Start extempore with a specific port
+./build/extempore --noaudio --port 17099 > /tmp/xtm_output.log 2>&1 &
+sleep 8  # wait for base library to load
+
+# Send an expression (printf for CRLF, nc for TCP)
+printf '(println 42)\r\n' | nc -w 5 localhost 17099 > /dev/null
+
+# Check output
+tail /tmp/xtm_output.log
+```
+
+Compilation output goes to extempore's stdout, not back through the TCP socket.
+The socket only returns `"Welcome to extempore!"` on connect and (optionally)
+the result of `ipc:` calls.
+
+TCP eval dispatches expressions as `SchemeTask::Type::REPL` tasks, which is the
+closest to how editors (VS Code, Emacs) send code interactively. This can
+produce different results from `--batch` because the evaluation context and
+process topology differ.
+
+## Monkey-patching Scheme compiler functions
+
+To debug the xtlang compiler (type inference, callback handling, etc.), you can
+redefine Scheme functions at runtime via TCP to inject logging. This avoids
+rebuilding and lets you inspect internal state.
+
+```bash
+# Redefine a compiler function to add debug output
+# (use define, not set! --- set! gets mangled by some code paths)
+printf '(define impc:ti:callback-check
+  (let ((old impc:ti:callback-check))
+    (lambda (ast vars kts request?)
+      (println (quote DEBUG) (quote ast:) ast)
+      (old ast vars kts request?))))\r\n' | nc -w 10 localhost 17099 > /dev/null
+
+# Now trigger the code path you want to debug
+printf '(bind-func my_test (lambda (x:i64) x))\r\n' | nc -w 10 localhost 17099 > /dev/null
+
+# Check the debug output
+tail /tmp/xtm_output.log
+```
+
+Key runtime functions to instrument:
+
+| Function                       | File              | Purpose                            |
+| ------------------------------ | ----------------- | ---------------------------------- |
+| `impc:ti:callback-check`      | `llvmti.xtm:7583` | callback arity/type checking      |
+| `impc:ti:first-transform`     | `llvmti.xtm`      | AST transformation (macro expand) |
+| `impc:ir:compiler:callback`   | `llvmir.xtm:4029`  | callback IR generation            |
+| `impc:ti:get-closure-arg-types`| `llvmti.xtm`     | closure type lookup               |
 
 ## Testing in isolation
 
