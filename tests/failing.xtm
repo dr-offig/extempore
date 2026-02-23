@@ -28,4 +28,19 @@
       nx))
  (integer? (dotimes_type_quirk_2 2)) #t)
 
+;; callback with self-referential temporal recursion gives "bad arity" error
+;; when the bind-func has an explicit type annotation
+;; reported by Toby Gifford 2026-02-23
+;; root cause: impc:ti:get-closure-arg-types returns NIL for the adhoc name
+;; during self-referential compilation; cbType from impc:ti:type-check returns
+;; a nested list ((213 ...)) when a type annotation is present, and the arity
+;; check at llvmti.xtm:7603 treats (length ftype) as 1 instead of unpacking it
+;; without the :[i64,i64]* annotation this compiles fine
+(xtmtest (bind-func callback_single_arg_recursion:[i64,i64]*
+           (lambda (t:i64)
+             (println t)
+             (callback (+ t 44100) callback_single_arg_recursion (+ t 44100))
+             t))
+         (callback_single_arg_recursion (now)))
+
 (xtmtest-print-results)
