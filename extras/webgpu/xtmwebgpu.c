@@ -326,7 +326,7 @@ WGPUBuffer xtm_wgpu_create_buffer(WGPUDevice device, uint64_t size,
     WGPUBufferDescriptor desc = {
         .size = size,
         .usage = (WGPUBufferUsage)usage,
-        .mappedAtCreation = false,
+        .mappedAtCreation = 0,
     };
     return wgpuDeviceCreateBuffer(device, &desc);
 }
@@ -336,7 +336,7 @@ WGPUBuffer xtm_wgpu_create_buffer(WGPUDevice device, uint64_t size,
 WGPUBindGroupLayout xtm_wgpu_create_uniform_layout(WGPUDevice device) {
     WGPUBufferBindingLayout buf_layout = {
         .type = WGPUBufferBindingType_Uniform,
-        .hasDynamicOffset = false,
+        .hasDynamicOffset = 0,
     };
     WGPUBindGroupLayoutEntry entry = {
         .binding = 0,
