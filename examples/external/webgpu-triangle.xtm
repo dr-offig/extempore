@@ -29,34 +29,41 @@ fn fs_main() -> @location(0) vec4f {
     return vec4f(0.3, 0.7, 1.0, 1.0);
 }")
 
-(bind-val wgpu_window GLFWwindow* null)
-(bind-val wgpu_instance WGPUInstance* null)
-(bind-val wgpu_surface WGPUSurface* null)
-(bind-val wgpu_adapter WGPUAdapter* null)
-(bind-val wgpu_device WGPUDevice* null)
-(bind-val wgpu_queue WGPUQueue* null)
-(bind-val wgpu_format i32 0)
-(bind-val wgpu_pipeline WGPURenderPipeline* null)
+;; bail out if no display available (e.g. in CI)
+(if (<> (glfw_init) 1)
+    (begin (println "no display available, exiting") (quit 0)))
 
-(bind-func webgpu_triangle_init
-  (lambda ()
-    (set! wgpu_window (glfw_init_and_create_webgpu_window 800 600))
-    (set! wgpu_instance (wgpuCreateInstance null))
-    (set! wgpu_surface (xtm_wgpu_create_surface wgpu_instance wgpu_window))
-    (set! wgpu_adapter (xtm_wgpu_request_adapter wgpu_instance wgpu_surface))
-    (set! wgpu_device (xtm_wgpu_request_device wgpu_instance wgpu_adapter))
-    (set! wgpu_queue (wgpuDeviceGetQueue wgpu_device))
-    (set! wgpu_format (xtm_wgpu_surface_format wgpu_surface wgpu_adapter))
-    (xtm_wgpu_configure_surface wgpu_surface wgpu_device wgpu_format 800 600)
-    (let ((shader (xtm_wgpu_create_shader wgpu_device TRIANGLE_WGSL)))
-      (set! wgpu_pipeline
-            (xtm_wgpu_create_pipeline wgpu_device shader wgpu_format
-                                       "vs_main" "fs_main"))
-      (wgpuShaderModuleRelease shader))
-    (println "WebGPU triangle initialised")
-    void))
+(bind-val wgpu_window GLFWwindow*
+  (glfw_create_webgpu_window 800 600))
 
-(webgpu_triangle_init)
+(bind-val wgpu_instance WGPUInstance*
+  (wgpuCreateInstance null))
+
+(bind-val wgpu_surface WGPUSurface*
+  (xtm_wgpu_create_surface wgpu_instance wgpu_window))
+
+(bind-val wgpu_adapter WGPUAdapter*
+  (xtm_wgpu_request_adapter wgpu_instance wgpu_surface))
+
+(bind-val wgpu_device WGPUDevice*
+  (xtm_wgpu_request_device wgpu_instance wgpu_adapter))
+
+(bind-val wgpu_queue WGPUQueue*
+  (wgpuDeviceGetQueue wgpu_device))
+
+(bind-val wgpu_format i32
+  (xtm_wgpu_surface_format wgpu_surface wgpu_adapter))
+
+(xtm_wgpu_configure_surface wgpu_surface wgpu_device wgpu_format 800 600)
+
+(bind-val wgpu_shader WGPUShaderModule*
+  (xtm_wgpu_create_shader wgpu_device TRIANGLE_WGSL))
+
+(bind-val wgpu_pipeline WGPURenderPipeline*
+  (xtm_wgpu_create_pipeline wgpu_device wgpu_shader wgpu_format
+                             "vs_main" "fs_main"))
+
+(println "WebGPU triangle initialised")
 
 (bind-func webgpu_triangle_draw_loop
   (lambda (time:i64 delta_t:double)
