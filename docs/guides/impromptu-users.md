@@ -54,13 +54,10 @@ don't want to write your own instruments from scratch that's ok, too: Extempore
 ships with some synths and samplers, and hopefully the number of built-in
 instruments will grow as the community grows.
 
-In the graphics case, Extempore uses
-[nanovg](https://github.com/memononen/nanovg) (for 2D) and OpenGL (for 2D and
-3D) cross-platform graphics programming. This involves a few platform-specific
-hacks in the source code for Extempore itself, but any Scheme/xtlang code you
-write to manipulate nanovg or OpenGL graphics objects should be portable to any
-platform where Extempore runs. Some of Impromptu's OpenGL bindings have made it
-across to Extempore unchanged, while others may be slightly different.
+In the graphics case, Extempore uses [WebGPU](https://www.w3.org/TR/webgpu/)
+(via wgpu-native) for cross-platform graphics programming. The previous
+OpenGL/nanovg graphics stack has been deprecated and replaced with WebGPU, which
+provides a modern, portable GPU API.
 
 In fact, one of the key tenets of Extempore's design philosophy was to keep
 functionality out of the compiled `extempore` binary and provide it in libraries
@@ -79,12 +76,7 @@ are:
 
 **Graphics**
 
--   `examples/external/shader-tutorials/` (the whole directory)
--   `examples/external/raymarcher.xtm`
--   `examples/external/openvg.xtm`
--   `examples/external/spectrogram.xtm`
--   `examples/external/xtmrender1.xtm` (or any of the other xtmrender
-    examples)
+-   `examples/external/webgpu-triangle.xtm`
 
 ## What will I have to change to switch from Impromptu to Extempore? {#what-will-i-have-to-change-to-switch-from-impromptu-to-extempore}
 
@@ -106,14 +98,9 @@ should be the same as it was in Impromptu.
 
 **Graphics**
 
-If you're using any Quartz functions (e.g. `gfx:make-square`, `gfx:draw-path`)
-you'll need to change them over to the equivalent cairo drawing commands.
-nanovg's API and drawing model is similar to Quartz's, but there may be a couple
-of tweaks required.
-
-If you're using OpenGL, then you may not need to change much. But it's
-definitely worth going over the code carefully to see if it's still doing what
-you expect.
+If you're using any Quartz or OpenGL functions, you'll need to rewrite them
+using the new WebGPU graphics pipeline. See `examples/external/webgpu-triangle.xtm`
+for a starting point.
 
 ## Getting help {#getting-help}
 

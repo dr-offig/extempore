@@ -61,7 +61,7 @@ NOTE: this project uses GitHub Actions (in particular the
 | `include/`        | C++ headers                                           |
 | `runtime/`        | Bootstrap files (scheme.xtm, LLVM IR bitcode)         |
 | `libs/core/`      | Core xtlang standard library                          |
-| `libs/external/`  | Bindings to external libs (OpenGL, audio codecs, FFT) |
+| `libs/external/`  | Bindings to external libs (WebGPU, audio codecs, FFT) |
 | `libs/aot-cache/` | AOT-compiled bytecode (auto-generated, don't edit)    |
 | `tests/`          | Test files (.xtm)                                     |
 | `examples/`       | Example programs                                      |

@@ -74,7 +74,7 @@ labels:
 -   libs-external
 -   examples-core
 -   examples-external
--   examples-external-shader
+-   examples-graphics
 
 To **include** only the labels matching `<regex>`, use:
 

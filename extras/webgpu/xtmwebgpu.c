@@ -318,3 +318,101 @@ void xtm_wgpu_end_frame(WGPUSurface surface, WGPUQueue queue,
     wgpuSurfacePresent(surface);
     wgpuTextureViewRelease(view);
 }
+
+/* --- buffer creation --- */
+
+WGPUBuffer xtm_wgpu_create_buffer(WGPUDevice device, uint64_t size,
+                                    uint32_t usage) {
+    WGPUBufferDescriptor desc = {
+        .size = size,
+        .usage = (WGPUBufferUsage)usage,
+        .mappedAtCreation = false,
+    };
+    return wgpuDeviceCreateBuffer(device, &desc);
+}
+
+/* --- uniform bind group layout (single buffer at binding 0) --- */
+
+WGPUBindGroupLayout xtm_wgpu_create_uniform_layout(WGPUDevice device) {
+    WGPUBufferBindingLayout buf_layout = {
+        .type = WGPUBufferBindingType_Uniform,
+        .hasDynamicOffset = false,
+    };
+    WGPUBindGroupLayoutEntry entry = {
+        .binding = 0,
+        .visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment,
+        .buffer = buf_layout,
+    };
+    WGPUBindGroupLayoutDescriptor desc = {
+        .entryCount = 1,
+        .entries = &entry,
+    };
+    return wgpuDeviceCreateBindGroupLayout(device, &desc);
+}
+
+/* --- uniform bind group (single buffer at binding 0) --- */
+
+WGPUBindGroup xtm_wgpu_create_uniform_bind_group(WGPUDevice device,
+                                                    WGPUBindGroupLayout layout,
+                                                    WGPUBuffer buffer,
+                                                    uint64_t size) {
+    WGPUBindGroupEntry entry = {
+        .binding = 0,
+        .buffer = buffer,
+        .offset = 0,
+        .size = size,
+    };
+    WGPUBindGroupDescriptor desc = {
+        .layout = layout,
+        .entryCount = 1,
+        .entries = &entry,
+    };
+    return wgpuDeviceCreateBindGroup(device, &desc);
+}
+
+/* --- render pipeline with bind group layout --- */
+
+WGPURenderPipeline xtm_wgpu_create_pipeline_with_layout(
+    WGPUDevice device, WGPUShaderModule shader, uint32_t format,
+    const char *vs_entry, const char *fs_entry,
+    WGPUBindGroupLayout bind_group_layout) {
+    WGPUPipelineLayoutDescriptor pl_desc = {
+        .bindGroupLayoutCount = 1,
+        .bindGroupLayouts = &bind_group_layout,
+    };
+    WGPUPipelineLayout layout =
+        wgpuDeviceCreatePipelineLayout(device, &pl_desc);
+
+    WGPUColorTargetState color_target = {
+        .format = (WGPUTextureFormat)format,
+        .writeMask = WGPUColorWriteMask_All,
+    };
+    WGPUFragmentState fragment = {
+        .module = shader,
+        .entryPoint = {.data = fs_entry, .length = strlen(fs_entry)},
+        .targetCount = 1,
+        .targets = &color_target,
+    };
+    WGPURenderPipelineDescriptor desc = {
+        .layout = layout,
+        .vertex =
+            {
+                .module = shader,
+                .entryPoint = {.data = vs_entry, .length = strlen(vs_entry)},
+            },
+        .primitive =
+            {
+                .topology = WGPUPrimitiveTopology_TriangleList,
+            },
+        .multisample =
+            {
+                .count = 1,
+                .mask = 0xFFFFFFFF,
+            },
+        .fragment = &fragment,
+    };
+    WGPURenderPipeline pipeline =
+        wgpuDeviceCreateRenderPipeline(device, &desc);
+    wgpuPipelineLayoutRelease(layout);
+    return pipeline;
+}
