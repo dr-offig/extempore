@@ -123,6 +123,19 @@ WGPUAdapter xtm_wgpu_request_adapter(WGPUInstance instance,
     return result.adapter;
 }
 
+/* --- uncaptured error handler (log instead of abort) --- */
+
+static void on_uncaptured_error(WGPUDevice const *device,
+                                 WGPUErrorType type, WGPUStringView message,
+                                 void *userdata1, void *userdata2) {
+    (void)device;
+    (void)userdata1;
+    (void)userdata2;
+    printf("wgpu uncaptured error (type %d, len %zu):\n%.*s\n", (int)type,
+           message.length, (int)message.length, message.data);
+    fflush(stdout);
+}
+
 /* --- synchronous device request --- */
 
 typedef struct {
@@ -149,6 +162,9 @@ WGPUDevice xtm_wgpu_request_device(WGPUInstance instance,
                                     WGPUAdapter adapter) {
     WGPUDeviceDescriptor desc = {0};
     desc.defaultQueue.label = (WGPUStringView){.data = "default", .length = 7};
+    desc.uncapturedErrorCallbackInfo = (WGPUUncapturedErrorCallbackInfo){
+        .callback = on_uncaptured_error,
+    };
     WGPURequestDeviceCallbackInfo cb = {
         .mode = WGPUCallbackMode_AllowProcessEvents,
     };
@@ -165,15 +181,16 @@ WGPUDevice xtm_wgpu_request_device(WGPUInstance instance,
 /* --- surface configuration --- */
 
 void xtm_wgpu_configure_surface(WGPUSurface surface, WGPUDevice device,
-                                 uint32_t format, uint32_t width,
-                                 uint32_t height) {
+                                 uint32_t format, GLFWwindow *window) {
+    int fb_width, fb_height;
+    glfwGetFramebufferSize(window, &fb_width, &fb_height);
     WGPUSurfaceConfiguration config = {
         .device = device,
         .format = (WGPUTextureFormat)format,
         .usage = WGPUTextureUsage_RenderAttachment,
         .alphaMode = WGPUCompositeAlphaMode_Auto,
-        .width = width,
-        .height = height,
+        .width = (uint32_t)fb_width,
+        .height = (uint32_t)fb_height,
         .presentMode = WGPUPresentMode_Fifo,
     };
     wgpuSurfaceConfigure(surface, &config);
@@ -258,8 +275,7 @@ void xtm_wgpu_begin_frame(WGPUSurface surface, WGPUDevice device, double r,
         return;
     }
 
-    WGPUTextureViewDescriptor view_desc = {0};
-    WGPUTextureView view = wgpuTextureCreateView(st.texture, &view_desc);
+    WGPUTextureView view = wgpuTextureCreateView(st.texture, NULL);
 
     WGPUCommandEncoderDescriptor enc_desc = {0};
     WGPUCommandEncoder encoder =
@@ -267,6 +283,7 @@ void xtm_wgpu_begin_frame(WGPUSurface surface, WGPUDevice device, double r,
 
     WGPURenderPassColorAttachment color_att = {
         .view = view,
+        .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
         .loadOp = WGPULoadOp_Clear,
         .storeOp = WGPUStoreOp_Store,
         .clearValue = {.r = r, .g = g, .b = b, .a = a},

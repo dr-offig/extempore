@@ -27,8 +27,7 @@ XTMWGPU_EXPORT WGPUDevice xtm_wgpu_request_device(WGPUInstance instance,
 XTMWGPU_EXPORT void xtm_wgpu_configure_surface(WGPUSurface surface,
                                                  WGPUDevice device,
                                                  uint32_t format,
-                                                 uint32_t width,
-                                                 uint32_t height);
+                                                 struct GLFWwindow *window);
 
 XTMWGPU_EXPORT uint32_t xtm_wgpu_surface_format(WGPUSurface surface,
                                                   WGPUAdapter adapter);

@@ -14,19 +14,32 @@
 (sys:load "libs/external/webgpu.xtm")
 
 (bind-val TRIANGLE_WGSL i8*
-"@vertex
-fn vs_main(@builtin(vertex_index) idx: u32) -> @builtin(position) vec4f {
+"struct VertexOutput {
+    @builtin(position) pos: vec4f,
+    @location(0) color: vec3f,
+};
+
+@vertex
+fn vs_main(@builtin(vertex_index) idx: u32) -> VertexOutput {
     var pos = array<vec2f, 3>(
         vec2f( 0.0,  0.5),
         vec2f(-0.5, -0.5),
         vec2f( 0.5, -0.5)
     );
-    return vec4f(pos[idx], 0.0, 1.0);
+    var color = array<vec3f, 3>(
+        vec3f(1.0, 0.0, 0.0),
+        vec3f(0.0, 1.0, 0.0),
+        vec3f(0.0, 0.0, 1.0)
+    );
+    var out: VertexOutput;
+    out.pos = vec4f(pos[idx], 0.0, 1.0);
+    out.color = color[idx];
+    return out;
 }
 
 @fragment
-fn fs_main() -> @location(0) vec4f {
-    return vec4f(0.3, 0.7, 1.0, 1.0);
+fn fs_main(@location(0) color: vec3f) -> @location(0) vec4f {
+    return vec4f(color, 1.0);
 }")
 
 ;; bail out if no display available (e.g. in CI)
@@ -54,7 +67,8 @@ fn fs_main() -> @location(0) vec4f {
 (bind-val wgpu_format i32
   (xtm_wgpu_surface_format wgpu_surface wgpu_adapter))
 
-(xtm_wgpu_configure_surface wgpu_surface wgpu_device wgpu_format 800 600)
+(bind-val wgpu_surface_configured i1
+  (begin (xtm_wgpu_configure_surface wgpu_surface wgpu_device wgpu_format wgpu_window) 1:i1))
 
 (bind-val wgpu_shader WGPUShaderModule*
   (xtm_wgpu_create_shader wgpu_device TRIANGLE_WGSL))
