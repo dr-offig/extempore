@@ -1,9 +1,10 @@
 ---
-id: DRAFT-002
+id: TASK-031
 title: Upgrade to LLVM 22 and adopt new ORC JIT features
-status: Draft
+status: In Progress
 assignee: []
 created_date: '2026-02-24 08:39'
+updated_date: '2026-02-25 21:38'
 labels:
   - llvm
   - jit
@@ -14,7 +15,7 @@ priority: medium
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Upgrade Extempore from LLVM 21.1.7 to LLVM 22 (or 23, depending on release timing) and adopt relevant new ORC JIT features. LLVM 22 is currently at RC3.
+Upgrade Extempore from LLVM 21.1.7 to LLVM 22 and adopt relevant new ORC JIT features. LLVM 22.1.0 was released on 24 Feb 2026.
 
 Extempore already uses ORC JIT (LLJIT) with DynamicLibrarySearchGenerator for host process symbols and manual absoluteSymbols registration for builtins (see src/EXTLLVM.cpp). The upgrade itself should be straightforward since the ORC migration is complete, but several new features are worth adopting.
 
@@ -50,20 +51,23 @@ Internal ORC refactor replacing baked-in dependence tracking. Unlikely to requir
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 CMakeLists.txt DEP_LLVM_VERSION bumped to new release
+- [x] #1 CMakeLists.txt DEP_LLVM_VERSION bumped to new release
 - [ ] #2 Extempore builds and passes tests on macOS (AArch64) and Linux (x86-64)
-- [ ] #3 Evaluate LibraryResolver as replacement for current DynamicLibrarySearchGenerator setup
-- [ ] #4 Evaluate JIT backtrace symbolication for xtlang crash debugging
+- [x] #3 Evaluate LibraryResolver as replacement for current DynamicLibrarySearchGenerator setup
+- [x] #4 Evaluate JIT backtrace symbolication for xtlang crash debugging
 - [ ] #5 No regressions in xtlang compilation latency (live-coding responsiveness)
 <!-- AC:END -->
 
-## References
+## Implementation Notes
 
-- https://github.com/llvm/llvm-project/pull/148410
-- https://github.com/llvm/llvm-project/pull/175099
-- https://github.com/llvm/llvm-project/pull/146852
-- https://github.com/llvm/llvm-project/pull/173204
-- https://github.com/llvm/llvm-project/pull/175981
-- https://github.com/llvm/llvm-project/pull/163027
-- src/EXTLLVM.cpp
-- CMakeLists.txt
+<!-- SECTION:NOTES:BEGIN -->
+Version bumped from 21.1.7 to 22.1.0 in CMakeLists.txt and CI workflow.
+
+Feature evaluations (all assessed as not worth adopting now):
+- LibraryResolver: designed for Clang-Repl auto-discovery; Extempore's explicit registration via DynamicLibrarySearchGenerator + absoluteSymbols is cleaner for our use case.
+- JIT backtrace symbolication: no confirmed user-facing API in LLVM 22.
+- ReOptimizeLayer: no documentation, appears experimental.
+- cloneToContext: existing API, not new in 22.
+
+No breaking ORC JIT API changes between 21 and 22. Awaiting CI verification for AC #2 and #5.
+<!-- SECTION:NOTES:END -->
