@@ -1,3 +1,8 @@
+---
+name: extempore-debugging
+description: Debugging and development guide for Extempore. Use when debugging JIT compilation issues, understanding symbol tracking, or testing compilation in different modes (batch, eval, interactive).
+---
+
 # Extempore debugging skill
 
 ## Architecture overview
